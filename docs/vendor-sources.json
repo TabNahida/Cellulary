@@ -1,0 +1,372 @@
+{
+  "schema_version": 1,
+  "accessed_on": "2026-09-16",
+  "origin": "https://www.quectel.com.cn",
+  "redistribution": "Original vendor files are local research material and should be excluded from version control. Copyright remains with Quectel.",
+  "sources": [
+    {
+      "id": "ec200a-product",
+      "kind": "official_product_page",
+      "title": "EC200A product page",
+      "url": "https://www.quectel.com.cn/product/ec200a-series",
+      "accessed_on": "2026-09-16",
+      "version": null,
+      "status": "downloaded",
+      "local_path": "docs/vendor/EC200A-product.html",
+      "sha256": "0628aa2495884a4bb4802219837741511c52dbf3e6a84f075e889cdefdc9a78a"
+    },
+    {
+      "id": "ec200a-specification",
+      "kind": "official_pdf",
+      "title": "Quectel_EC200A系列_LTE_Standard_模块产品规格书_V1.6",
+      "url": "https://www.quectel.com.cn/wp-content/uploads/2024/05/Quectel_EC200A%E7%B3%BB%E5%88%97_LTE_Standard_%E6%A8%A1%E5%9D%97%E4%BA%A7%E5%93%81%E8%A7%84%E6%A0%BC%E4%B9%A6_V1.6.pdf",
+      "accessed_on": "2026-09-16",
+      "version": "1.6",
+      "status": "downloaded",
+      "local_path": "docs/vendor/EC200A-specification.pdf",
+      "sha256": "9d465682dd30536da08bb548615bcce5e5f3b9b2d56145ffd35b72750b4647df",
+      "pages": 3
+    },
+    {
+      "id": "ec801e-product",
+      "kind": "official_product_page",
+      "title": "EC801E product page",
+      "url": "https://www.quectel.com.cn/product/lte-ec801e-cn",
+      "accessed_on": "2026-09-16",
+      "version": null,
+      "status": "downloaded",
+      "local_path": "docs/vendor/EC801E-product.html",
+      "sha256": "9d590ca5a9030075ebbf39f715a64f507144e72324736d9b70f19529a29f6293"
+    },
+    {
+      "id": "ec801e-specification",
+      "kind": "official_pdf",
+      "title": "Quectel_EC801E-CN_LTE_Standard_模块产品规格书_V1.0",
+      "url": "https://www.quectel.com.cn/wp-content/uploads/2024/07/Quectel_EC801E-CN_LTE_Standard_%E6%A8%A1%E5%9D%97%E4%BA%A7%E5%93%81%E8%A7%84%E6%A0%BC%E4%B9%A6_V1.0.pdf",
+      "accessed_on": "2026-09-16",
+      "version": "1.0",
+      "status": "downloaded",
+      "local_path": "docs/vendor/EC801E-specification.pdf",
+      "sha256": "c8c0e74e8fad9d9d2e8eb7cfb8d2d53be5635ea8e110b65a74231b813c872219",
+      "pages": 2
+    },
+    {
+      "id": "forum-10409",
+      "kind": "official_forum_thread",
+      "title": "EC801E MBIM/QMI support and identification",
+      "url": "https://forumschinese.quectel.com/t/topic/10409",
+      "retrieved_url": "https://forumschinese.quectel.com/t/topic/10409.json",
+      "accessed_on": "2026-09-16",
+      "version": null,
+      "status": "downloaded",
+      "local_path": "docs/vendor/forum-10409.json",
+      "sha256": "7b78e20ed515dd82ec53a6066f840c87308cabba22830be704727a49197a6d29",
+      "caution": "Forum has user reports and support replies; does not replace the manual or firmware-specific testing."
+    },
+    {
+      "id": "forum-4637",
+      "kind": "official_forum_thread",
+      "title": "EC801E PPP availability differs by firmware",
+      "url": "https://forumschinese.quectel.com/t/topic/4637",
+      "retrieved_url": "https://forumschinese.quectel.com/t/topic/4637.json",
+      "accessed_on": "2026-09-16",
+      "version": null,
+      "status": "downloaded",
+      "local_path": "docs/vendor/forum-4637.json",
+      "sha256": "be6e82786183d8591ff6e4c75e012ad68d5628f15f6d9eaaaf5975da6477003b",
+      "caution": "Forum has user reports and support replies; does not replace the manual or firmware-specific testing."
+    },
+    {
+      "id": "forum-5976",
+      "kind": "official_forum_thread",
+      "title": "EC801E QNETDEVCTL and host DHCP troubleshooting",
+      "url": "https://forumschinese.quectel.com/t/topic/5976",
+      "retrieved_url": "https://forumschinese.quectel.com/t/topic/5976.json",
+      "accessed_on": "2026-09-16",
+      "version": null,
+      "status": "downloaded",
+      "local_path": "docs/vendor/forum-5976.json",
+      "sha256": "2a7f2a15d1453abddaa0f6c0204d80d8e31b7fb008784e3741515a824373faef",
+      "caution": "Forum has user reports and support replies; does not replace the manual or firmware-specific testing."
+    },
+    {
+      "id": "quectel-download-61307",
+      "kind": "official_pdf",
+      "title": "Quectel_LTE_Standard(A)系列_AT命令手册_V1.4",
+      "url": "https://www.quectel.com.cn/download/quectel_lte_standarda%e7%b3%bb%e5%88%97_at%e5%91%bd%e4%bb%a4%e6%89%8b%e5%86%8c_v1-4",
+      "accessed_on": "2026-09-16",
+      "version": "1.4",
+      "status": "downloaded",
+      "download_id": 61307,
+      "attachment_id": 181122,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_LTE_StandardA系列_AT命令手册_V1.4.pdf",
+      "sha256": "69791a4bb3fa0ceb6d5f8075b7be17b4a5d17cc16150f07f515065699cbad792",
+      "published_on": "2026-06-30",
+      "pdf_page_count": 210,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory.",
+      "evidence": [
+        {
+          "printed_pages": [
+            54
+          ],
+          "finding": "usbnet: 1 ECM, 3 RNDIS; newer EC200A-EUV1 on this workstation also exposes an observed MBN interface, which this manual does not enumerate."
+        },
+        {
+          "printed_pages": [
+            175,
+            176
+          ],
+          "finding": "QNETDEVCTL syntax and meanings verified; same control parameter roles as E series."
+        }
+      ]
+    },
+    {
+      "id": "quectel-download-61311",
+      "kind": "official_pdf",
+      "title": "Quectel_LTE_Standard(E)系列_AT命令手册_V1.3",
+      "url": "https://www.quectel.com.cn/download/quectel_lte_standarde%e7%b3%bb%e5%88%97_at%e5%91%bd%e4%bb%a4%e6%89%8b%e5%86%8c_v1-3",
+      "accessed_on": "2026-09-16",
+      "version": "1.3",
+      "status": "downloaded",
+      "download_id": 61311,
+      "attachment_id": 67432,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_LTE_StandardE系列_AT命令手册_V1.3.pdf",
+      "sha256": "beb060aaf025d72e98d39532cf03f04221da1f7aed5d1cc8b4bc1ef6a6321124",
+      "published_on": "2025-07-22",
+      "pdf_page_count": 172,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory.",
+      "evidence": [
+        {
+          "printed_pages": [
+            51
+          ],
+          "finding": "usbnet: 1 ECM, 3 RNDIS; setting persists and requires reboot."
+        },
+        {
+          "printed_pages": [
+            137,
+            138
+          ],
+          "finding": "QNETDEVCTL: types 0 disconnect, 1 connect once, 3 automatic persistent; CID 1-15; URC flag 0/1."
+        },
+        {
+          "printed_pages": [
+            95
+          ],
+          "finding": "EC600Z-CN, EC800Z-CN, EC801E-CN temporarily do not support SMS commands."
+        },
+        {
+          "printed_pages": [
+            28
+          ],
+          "finding": "EC801E-CN CMEE supports only 0 and 1."
+        }
+      ]
+    },
+    {
+      "id": "quectel-download-9859",
+      "kind": "official_pdf",
+      "title": "Quectel_EC800Z&EC801E&EG800Z&EG901E&EG915Z系列_USB描述符介绍_V1.3",
+      "url": "https://www.quectel.com.cn/download/quectel_ec800zec801eeg800zeg901eeg915z%e7%b3%bb%e5%88%97_usb%e6%8f%8f%e8%bf%b0%e7%ac%a6%e4%bb%8b%e7%bb%8d_v1-3",
+      "accessed_on": "2026-09-16",
+      "version": "1.3",
+      "status": "downloaded",
+      "download_id": 9859,
+      "attachment_id": 179552,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_EC800ZEC801EEG800ZEG901EEG915Z系列_USB描述符介绍_V1.3.pdf",
+      "sha256": "2ae752f22802305cdaefd73b2b62d7aaa367882d4ec2f0240a364998b1a3f21c",
+      "published_on": "2026-08-18",
+      "pdf_page_count": 22,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-2906",
+      "kind": "official_pdf",
+      "title": "Quectel_LTE_Standard(A)系列_USB描述符介绍_V1.4",
+      "url": "https://www.quectel.com.cn/download/quectel_lte_standarda%e7%b3%bb%e5%88%97_usb%e6%8f%8f%e8%bf%b0%e7%ac%a6%e4%bb%8b%e7%bb%8d_v1-2",
+      "accessed_on": "2026-09-16",
+      "version": "1.4",
+      "status": "downloaded",
+      "download_id": 2906,
+      "attachment_id": 160466,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_LTE_StandardA系列_USB描述符介绍_V1.4.pdf",
+      "sha256": "1945d4d1a97f2c591c71a5482b6509ac7512fbb2587959e82d8248051ef189e7",
+      "published_on": "2026-02-05",
+      "pdf_page_count": 26,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-179504",
+      "kind": "official_pdf",
+      "title": "Quectel_EC801E-CN_硬件设计手册_V1.3",
+      "url": "https://www.quectel.com.cn/download/quectel_ec801e-cn_%e7%a1%ac%e4%bb%b6%e8%ae%be%e8%ae%a1%e6%89%8b%e5%86%8c_v1-3",
+      "accessed_on": "2026-09-16",
+      "version": "1.3",
+      "status": "downloaded",
+      "download_id": 179504,
+      "attachment_id": 179505,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_EC801E-CN_硬件设计手册_V1.3.pdf",
+      "sha256": "7ee3616fb888d96b4433dfb280fbd960116833f58617cfd16f4d5c587e2cb1aa",
+      "published_on": "2026-07-23",
+      "pdf_page_count": 67,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-180834",
+      "kind": "official_pdf",
+      "title": "Quectel_EC801E-CN(消费级)_硬件设计手册_V1.2",
+      "url": "https://www.quectel.com.cn/download/quectel_ec801e-cn%e6%b6%88%e8%b4%b9%e7%ba%a7_%e7%a1%ac%e4%bb%b6%e8%ae%be%e8%ae%a1%e6%89%8b%e5%86%8c_v1-2",
+      "accessed_on": "2026-09-16",
+      "version": "1.2",
+      "status": "downloaded",
+      "download_id": 180834,
+      "attachment_id": 180835,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_EC801E-CN消费级_硬件设计手册_V1.2.pdf",
+      "sha256": "9bdcbeaa42d0dbb74c4aee52791520017966849d73a4bf20f81532dc157b5ef6",
+      "published_on": "2025-09-05",
+      "pdf_page_count": 68,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-3033",
+      "kind": "official_pdf",
+      "title": "Quectel_EC200A系列_硬件设计手册_V1.3",
+      "url": "https://www.quectel.com.cn/download/quectel_ec200a%e7%b3%bb%e5%88%97_%e7%a1%ac%e4%bb%b6%e8%ae%be%e8%ae%a1%e6%89%8b%e5%86%8c_v1-3",
+      "accessed_on": "2026-09-16",
+      "version": "1.3",
+      "status": "downloaded",
+      "download_id": 3033,
+      "attachment_id": 64805,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_EC200A系列_硬件设计手册_V1.3.pdf",
+      "sha256": "9553177ee0456599f2507fafe0fe0d37b1a6ade9d4a0b9ebeb19791d062406fc",
+      "published_on": "2025-05-12",
+      "pdf_page_count": 108,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-121196",
+      "kind": "official_pdf",
+      "title": "Quectel_ECx00E&EC800Z&EC801E&EG800Z&EG901E系列_PPP_应用指导_V1.3",
+      "url": "https://www.quectel.com.cn/download/quectel_ecx00eec800zec801eeg800zeg901e%e7%b3%bb%e5%88%97_ppp_%e5%ba%94%e7%94%a8%e6%8c%87%e5%af%bc_v1-3",
+      "accessed_on": "2026-09-16",
+      "version": "1.3",
+      "status": "downloaded",
+      "download_id": 121196,
+      "attachment_id": 179547,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_ECx00EEC800ZEC801EEG800ZEG901E系列_PPP_应用指导_V1.3.pdf",
+      "sha256": "765321ed452b964821d81f8cff328cccf0acd035e3e919166724c73ab84cf959",
+      "published_on": "2026-08-18",
+      "pdf_page_count": 28,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-2914",
+      "kind": "official_pdf",
+      "title": "Quectel_LTE_Standard(A)系列_PPP_应用指导_V1.7",
+      "url": "https://www.quectel.com.cn/download/quectel_lte_standarda%e7%b3%bb%e5%88%97_ppp_%e5%ba%94%e7%94%a8%e6%8c%87%e5%af%bc_v1-5",
+      "accessed_on": "2026-09-16",
+      "version": "1.7",
+      "status": "downloaded",
+      "download_id": 2914,
+      "attachment_id": 157805,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_LTE_StandardA系列_PPP_应用指导_V1.7.pdf",
+      "sha256": "481ba1d777a78f440d8a2d9c46dd3b81b68e621917896e311c4558c43c466339",
+      "published_on": "2026-03-18",
+      "pdf_page_count": 30,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-3137",
+      "kind": "official_pdf",
+      "title": "Quectel_EC200x&EC600N系列_UAC_应用指导_V1.1",
+      "url": "https://www.quectel.com.cn/download/quectel_ec200xec600n%e7%b3%bb%e5%88%97_uac_%e5%ba%94%e7%94%a8%e6%8c%87%e5%af%bc_v1-1",
+      "accessed_on": "2026-09-16",
+      "version": "1.1",
+      "status": "downloaded",
+      "download_id": 3137,
+      "attachment_id": 3138,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_EC200xEC600N系列_UAC_应用指导_V1.1.pdf",
+      "sha256": "b05807d784debf01ac1d31a9b9d5e0a21f347b602410bf13eecada76f20f76ff",
+      "published_on": "2023-10-19",
+      "pdf_page_count": 20,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-114823",
+      "kind": "official_pdf",
+      "title": "Quectel_LTE_Standard(E)系列_音频应用指导_V1.0",
+      "url": "https://www.quectel.com.cn/download/quectel_lte_standarde%e7%b3%bb%e5%88%97_%e9%9f%b3%e9%a2%91%e5%ba%94%e7%94%a8%e6%8c%87%e5%af%bc_v1-0",
+      "accessed_on": "2026-09-16",
+      "version": "1.0",
+      "status": "downloaded",
+      "download_id": 114823,
+      "attachment_id": 114829,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_LTE_StandardE系列_音频应用指导_V1.0.pdf",
+      "sha256": "074b9d95291ab82e548f957e634610ca15947ee07732ce6e646beb062b965310",
+      "published_on": "2025-12-29",
+      "pdf_page_count": 20,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory.",
+      "applicability_note": "Table 1 on printed page 6 does not include EC801E-CN; this E-series audio guide must not be treated as EC801E voice capability evidence."
+    },
+    {
+      "id": "quectel-download-9237",
+      "kind": "official_pdf",
+      "title": "Quectel_LTE_Standard(A)系列_音频应用指导_V1.3",
+      "url": "https://www.quectel.com.cn/download/quectel_lte_standarda%e7%b3%bb%e5%88%97_%e9%9f%b3%e9%a2%91%e5%ba%94%e7%94%a8%e6%8c%87%e5%af%bc_v1-2",
+      "accessed_on": "2026-09-16",
+      "version": "1.3",
+      "status": "downloaded",
+      "download_id": 9237,
+      "attachment_id": 121077,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_LTE_StandardA系列_音频应用指导_V1.3.pdf",
+      "sha256": "e9f58e140421de01f3ce101a8fc1de133204dd5c89c32b0cd2dbcf25300e2656",
+      "published_on": "2025-12-18",
+      "pdf_page_count": 43,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    },
+    {
+      "id": "quectel-download-3047",
+      "kind": "official_download_catalog_entry",
+      "title": "Quectel_Windows_USB_Driver(A)_Customer_V1.4_CN",
+      "url": "https://www.quectel.com.cn/download/quectel_windows_usb_drivera_customer_v1-4_cn",
+      "accessed_on": "2026-09-16",
+      "version": "1.4",
+      "status": "unavailable",
+      "reason": "Official catalog requires authenticated download. PDF body not downloaded or used as command evidence yet.",
+      "download_id": 3047,
+      "attachment_id": 172077,
+      "requires_login": true,
+      "local_path": null,
+      "sha256": null
+    },
+    {
+      "id": "quectel-download-2919",
+      "kind": "official_pdf",
+      "title": "Quectel_LTE_Standard(A)系列_IMS_XML_应用指导_V1.1",
+      "url": "https://www.quectel.com.cn/download/quectel_lte_standarda%e7%b3%bb%e5%88%97_ims_xml_%e5%ba%94%e7%94%a8%e6%8c%87%e5%af%bc_v1-0",
+      "accessed_on": "2026-09-16",
+      "version": "1.1",
+      "status": "downloaded",
+      "download_id": 2919,
+      "attachment_id": 9556,
+      "requires_login": true,
+      "local_path": "docs/vendor/Quectel_LTE_StandardA系列_IMS_XML_应用指导_V1.1.pdf",
+      "sha256": "03357cada7201694a7d285df837728042cf78749e16aadba5a6a0b3391273840",
+      "published_on": "2024-11-18",
+      "pdf_page_count": 23,
+      "acquisition": "Authenticated official login form, then official multifile_download endpoint. Credentials and session cookies remained in memory."
+    }
+  ]
+}

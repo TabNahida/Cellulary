@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Cellulary 本地蜂窝模块管理工具">
+  <title>Cellulary · 蜂窝模块管理</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳至主要内容</a>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="管理导航">
+      <a class="brand" href="#overview" aria-label="Cellulary 总览"><span class="brand-mark" aria-hidden="true">c</span><span>Cellulary<small>蜂窝模块工作台</small></span></a>
+      <nav class="navigation" aria-label="功能">
+        <button type="button" class="nav-item active" data-page="overview" aria-current="page"><span>设备总览</span><span class="nav-count" id="nav-device-count">0</span></button>
+        <button type="button" class="nav-item" data-page="sms"><span>短信</span><span class="nav-hint">SMS</span></button>
+        <button type="button" class="nav-item" data-page="data"><span>数据连接</span><span class="nav-hint">DATA</span></button>
+        <button type="button" class="nav-item" data-page="calls"><span>通话</span><span class="nav-hint">CALL</span></button>
+        <button type="button" class="nav-item" data-page="events"><span>事件与诊断</span><span class="nav-hint">LOG</span></button>
+      </nav>
+      <div class="sidebar-devices">
+        <div class="sidebar-label"><span>已发现模块</span><span id="sidebar-device-count">0</span></div>
+        <div id="device-picker" class="device-picker"><p class="sidebar-empty">尚未发现设备</p></div>
+      </div>
+      <div class="sidebar-footer"><span class="connection-indicator" id="service-indicator" aria-hidden="true"></span><div><span id="service-state">连接服务中</span><small id="app-version">本地运行</small></div></div>
+    </aside>
+
+    <main id="main" tabindex="-1">
+      <div id="demo-banner" class="demo-banner" hidden>演示模式：所有设备和操作均为模拟数据，不会操作实际模块。</div>
+      <header class="page-header">
+        <div><p class="breadcrumb">工作台 <span>/</span> <span id="breadcrumb-page">设备总览</span></p><h1 id="page-title">设备总览</h1><p id="page-description" class="page-description">查看连接的模块、SIM 卡和蜂窝网络状态。</p></div>
+        <div class="header-actions"><span class="last-updated" id="last-updated">等待更新</span><button type="button" class="button primary" id="discover-button">扫描设备</button></div>
+      </header>
+      <div id="global-error" class="notice error" role="alert" hidden></div>
+      <div id="operation-status" class="notice" role="status" aria-live="polite" hidden></div>
+
+      <section id="page-overview" class="page-panel" aria-label="设备总览">
+        <div class="metrics" aria-label="设备统计">
+          <div class="metric"><span>已发现模块</span><strong id="metric-total">0</strong><small>可识别的 AT 接口</small></div>
+          <div class="metric"><span>SIM 卡就绪</span><strong id="metric-sim">0</strong><small>卡已识别且无需解锁</small></div>
+          <div class="metric"><span>已注册网络</span><strong id="metric-registered">0</strong><small>包含本地与漫游网络</small></div>
+          <div class="metric"><span>需要关注</span><strong id="metric-attention">0</strong><small>设备报告异常</small></div>
+        </div>
+        <section class="panel device-table-panel">
+          <div class="panel-heading"><div><h2>模块列表 <span class="subtle-count" id="table-count">0</span></h2><p>选择一个模块，查看详细状态或执行操作。</p></div><span class="live-label"><span class="status-dot" aria-hidden="true"></span>缓存状态自动更新</span></div>
+          <div class="table-scroll"><table class="device-table"><thead><tr><th scope="col">模块 / 接口</th><th scope="col">SIM 卡</th><th scope="col">运营商</th><th scope="col">网络注册</th><th scope="col">信号</th><th scope="col"><span class="visually-hidden">选择设备</span></th></tr></thead><tbody id="device-table-body"></tbody></table></div>
+          <div class="empty-state" id="devices-empty"><div class="empty-symbol" aria-hidden="true">+</div><h3>从连接第一个模块开始</h3><p>确认 USB 已连接、驱动已安装，然后扫描设备。<br>支持移远 EC200A-EU 与 EC801E-CN。</p><button type="button" class="button" id="empty-discover-button">扫描已连接模块</button></div>
+          <div class="panel-footer"><span>串口可用不代表主机已连接互联网。</span><span id="scan-status">等待扫描</span></div>
+        </section>
+        <div class="overview-bottom">
+          <section class="panel"><div class="panel-heading"><div><h2>模块详情</h2><p id="detail-subtitle">选择模块后显示设备信息。</p></div><button type="button" class="button small" id="status-button" disabled>刷新状态</button></div><div id="device-detail" class="details-body"><p class="muted">暂无选中的模块。</p></div><div class="quick-actions" id="quick-actions" hidden><button type="button" class="button" data-page="sms">收发短信</button><button type="button" class="button" data-page="data">配置网络</button><button type="button" class="button" data-page="calls">管理通话</button></div></section>
+          <section class="panel"><div class="panel-heading"><div><h2>最近事件</h2><p>扫描与操作的运行记录。</p></div><button type="button" class="text-button" data-page="events">查看全部 →</button></div><div id="recent-events" class="event-list"><p class="empty-inline">暂无事件。</p></div></section>
+        </div>
+      </section>
+
+      <div id="device-context" class="device-context" hidden><div><span class="context-caption">当前模块</span><strong id="context-model">未选择</strong><span id="context-port" class="mono"></span><span id="context-sim" class="badge"></span></div><label class="context-select-label" for="device-select">切换模块<select id="device-select" aria-label="切换模块"><option value="">请选择模块</option></select></label></div>
+      <div id="selection-empty" class="empty-state panel" hidden><h3>先选择一个模块</h3><p>扫描已连接的设备，再从左侧选择要操作的模块。</p><button type="button" class="button" data-page="overview">返回设备总览</button></div>
+
+      <section id="page-sms" class="page-panel" aria-label="短信" hidden>
+        <div class="workspace-grid">
+          <section class="panel"><div class="panel-heading"><div><h2>短信收件箱 <span id="sms-count" class="subtle-count">0</span></h2><p>读取当前模块存储的短信。</p></div><button type="button" class="button small" id="sms-refresh">读取短信</button></div><div id="sms-inbox" class="sms-inbox"><p class="empty-inline">点击“读取短信”查看消息。</p></div></section>
+          <section class="panel compose-panel"><div class="panel-heading"><div><h2>发送短信</h2><p>通过当前选中的 SIM 卡发送。</p></div></div><form id="sms-form" class="form-body"><label for="sms-number">收件人号码<input id="sms-number" name="number" type="tel" inputmode="tel" placeholder="例如 +8613800138000" required autocomplete="off" pattern="\+?[0-9]{3,20}" maxlength="21"></label><label for="sms-text">短信内容<textarea id="sms-text" name="text" placeholder="输入要发送的内容…" rows="7" maxlength="1000" required></textarea></label><div class="form-meta"><span id="sms-character-count">0 个字符</span><span>由模块发送</span></div><p class="field-note">运营商可能收取短信费用。可发送的长度和编码取决于模块能力。</p><button type="submit" class="button primary full-width">发送短信</button><p class="form-result" id="sms-result" role="status"></p></form></section>
+        </div>
+      </section>
+
+      <section id="page-data" class="page-panel" aria-label="数据连接" hidden>
+        <div class="workspace-grid">
+          <section class="panel"><div class="panel-heading"><div><h2>模块数据上下文</h2><p>配置运营商 APN，管理模块的 PDP 上下文。</p></div><button type="button" class="button small" id="data-refresh">刷新</button></div><div class="form-body"><div id="data-contexts"><p class="empty-inline">正在读取数据上下文…</p></div><form id="apn-form"><div class="form-row"><label for="data-cid">上下文 CID<input type="number" id="data-cid" name="cid" value="1" min="1" max="16" required></label><label for="data-apn">接入点 APN<input id="data-apn" name="apn" placeholder="例如 cmnet / 3gnet / ctnet" maxlength="100" pattern="[A-Za-z0-9.-]+" required autocomplete="off"></label></div><button type="submit" class="button">保存 APN</button></form><div class="divider"></div><p class="field-note">激活上下文会使用 SIM 卡的数据业务。主机联网还需要可用的系统移动宽带接口。</p><div class="button-row"><button type="button" class="button primary" id="data-activate">激活上下文</button><button type="button" class="button" id="data-deactivate">停用上下文</button></div><p class="form-result" id="data-result" role="status"></p>
+            <section class="usb-section" aria-labelledby="usb-title"><div class="subsection-heading"><h3 id="usb-title">USB 网卡拨号</h3><button type="button" class="button small" id="usb-refresh" disabled>刷新状态</button></div><div id="usb-status" class="usb-status" role="status"><span class="badge">等待查询</span></div><p class="field-note" id="usb-note">EC801E 可通过现有 RNDIS / ECM USB 网卡拨号。使用上方 CID，Windows 网卡需通过 DHCP 获取地址；此操作不修改模块 USB 模式。</p><div class="button-row"><button type="button" class="button primary" id="usb-connect" disabled>启动 USB 拨号</button><button type="button" class="button" id="usb-disconnect" disabled>停止 USB 拨号</button></div><p class="field-note usb-cost-note">启动后会使用 SIM 卡流量。模块拨号状态不代表 Windows 已联网。</p><p class="form-result" id="usb-result" role="status"></p></section>
+          </div></section>
+          <section class="panel"><div class="panel-heading"><div><h2>主机移动宽带</h2><p>通过操作系统管理本机互联网连接。</p></div><button type="button" class="button small" id="host-refresh">刷新</button></div><div class="form-body"><div id="host-network-summary" class="host-summary"><p class="muted">正在读取系统网络接口…</p></div><form id="host-connect-form"><label for="host-interface">移动宽带接口<select id="host-interface" required><option value="">选择系统接口</option></select></label><label for="host-profile">连接配置文件<select id="host-profile" required><option value="">选择配置文件</option></select></label><p class="field-note">这些是主机级接口，请核对目标接口对应的模块。连接会影响本机网络路由，并可能产生流量费用。</p><div class="button-row"><button type="submit" class="button primary" id="host-connect">连接互联网</button><button type="button" class="button" id="host-disconnect">断开连接</button></div></form><p class="form-result" id="host-result" role="status"></p></div></section>
+        </div>
+      </section>
+
+      <section id="page-calls" class="page-panel" aria-label="通话" hidden>
+        <div class="notice" id="ec801e-voice-note" hidden>EC801E 语音功能尚未验证，部分固件不支持通话指令。</div>
+        <div class="workspace-grid">
+          <section class="panel"><div class="panel-heading"><div><h2>当前通话</h2><p>显示模块报告的活动、来电与等待通话。</p></div><button type="button" class="button small" id="calls-refresh">刷新通话</button></div><div id="call-list" class="call-list"><p class="empty-inline">正在读取通话状态…</p></div><div class="call-controls"><button type="button" class="button" id="call-answer">接听来电</button><button type="button" class="button danger" id="call-hangup">挂断通话</button></div></section>
+          <section class="panel"><div class="panel-heading"><div><h2>拨打电话</h2><p>通过模块发起语音呼叫。</p></div></div><form id="dial-form" class="form-body"><label for="call-number">电话号码<input id="call-number" type="tel" inputmode="tel" placeholder="输入要拨打的号码" required autocomplete="off" pattern="\+?[0-9]{3,20}" maxlength="21"></label><div class="notice compact"><strong>通话能力取决于模块与网络</strong><p>模块固件、运营商 VoLTE 服务和音频接线均需支持。网页控制拨号；音频需要模块的音频接口或外部设备。</p></div><p class="field-note">点击拨号后会立即呼叫，运营商可能收取通话费用。</p><button type="submit" class="button primary full-width">拨打电话</button><p class="form-result" id="call-result" role="status"></p></form></section>
+        </div>
+      </section>
+
+      <section id="page-events" class="page-panel" aria-label="事件与诊断" hidden>
+        <section class="panel"><div class="panel-heading"><div><h2>运行事件</h2><p>查看模块发现、状态查询与操作的结果。</p></div><div class="button-row"><label class="visually-hidden" for="event-filter">筛选事件等级</label><select id="event-filter" class="compact-select"><option value="all">全部等级</option><option value="error">错误</option><option value="warning">警告</option><option value="info">信息</option></select><button type="button" class="button small" id="events-refresh">刷新事件</button></div></div><div class="table-scroll"><table class="events-table"><thead><tr><th scope="col">时间</th><th scope="col">等级</th><th scope="col">模块</th><th scope="col">事件</th></tr></thead><tbody id="events-body"></tbody></table></div><p class="empty-inline" id="events-empty">暂无事件。扫描设备后，运行记录将显示在这里。</p></section>
+        <div class="diagnostic-note"><h3>连接排查</h3><p>如果未发现模块，请检查 USB 供电和数据线、驱动是否安装，以及 AT 串口是否被其他程序占用。SIM 未就绪时，请检查卡槽与 PIN 状态；网络未注册时，请检查天线、信号与运营商服务。</p></div>
+      </section>
+      <footer class="main-footer"><span>Cellulary · 本地蜂窝模块管理</span><span id="footer-mode">所有操作由本机服务执行</span></footer>
+    </main>
+  </div>
+</body>
+</html>
