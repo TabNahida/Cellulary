@@ -1,108 +1,148 @@
+<div align="center">
+
 # Cellulary
 
-本地运行的蜂窝网络 Python 工具库、命令行和中文 Web 管理台。第一批适配移远 **EC200A-EU** 和 **EC801E-CN**，通过 USB AT 串口控制。Python ≥ 3.11，当前主机联网适配器面向 Windows。
+**Your cellular modems. One Python API. One local dashboard.**
 
-## 开始使用
+SMS · Mobile data · Call control · SIM information · GNSS
 
-```powershell
-uv sync --extra dev
-uv run cellulary web
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
+
+[Quick start](#quick-start) · [Supported hardware](#supported-hardware) · [Documentation](docs/README.md) · [简体中文](README.zh-CN.md)
+
+</div>
+
+Cellulary brings USB cellular modules into a single workspace: a Python library for your applications, a CLI for scripts, and a web console for daily operation. Discover multiple modems, inspect their SIM and network state, read messages, and control supported services from your own computer.
+
+Model-specific drivers keep vendor commands and firmware differences behind a common API. The first hardware targets are **Quectel EC200A-EU/EUV1** and **EC801E-CN**. An **EC25** driver provides a protocol implementation, including GNSS, awaiting hardware validation.
+
+## What you can build
+
+| Capability | What Cellulary provides |
+| --- | --- |
+| Multiple modems | AT-port discovery, model and firmware identification, SIM readiness, signal and registration state |
+| SMS | PDU messaging, GSM 7-bit and UCS2, multipart messages, and partial-submission reporting on capable firmware |
+| Mobile data | APN/PDP management, EC200A/EC801E USB network control, and existing Windows mobile broadband profiles |
+| Call control | Dial, answer, hang up, and inspect calls when the module, firmware and SIM support voice |
+| SIM information | Subscriber-number lookup where the SIM exposes it; an empty number remains unknown |
+| GNSS | Driver-specific receiver control and position queries; EC25 protocol support, no GNSS assumption for EC200A-EU or EC801E |
+| Local dashboard | Device overview, service actions, capability feedback and event history, backed by FastAPI |
+
+## Quick start
+
+Install Python **3.11 or later** and the USB drivers for your module, then connect it to your computer. Use the module's **AT port**; diagnostic and modem ports serve different purposes.
+
+```sh
+git clone https://github.com/TabNahida/Cellulary.git
+cd Cellulary
+python -m pip install -e .
+cellulary web
 ```
 
-打开 **http://127.0.0.1:8765**。安装过的项目也可以直接运行：
+Open **http://127.0.0.1:8765**. Interactive API documentation is at **http://127.0.0.1:8765/docs**.
 
-```powershell
-.venv\Scripts\python.exe -m cellulary web
-```
+The dashboard starts in English, with a Chinese language option and system, light and dark themes. Select a modem once and switch between its overview, messages, network, calls and GNSS. The Network tab also identifies the matching host adapter and flags duplicate MAC addresses.
 
-也可使用标准 pip：`python -m pip install -e ".[dev]"`，随后运行 `cellulary web`。
+With [uv](https://docs.astral.sh/uv/), run `uv sync --extra dev` followed by `uv run cellulary web`.
 
-管理台提供设备总览、收发短信、数据连接、通话控制与事件记录。自动扫描仅探测移远的 AT 接口，不探测 DIAG、Modem 或其他厂商串口。不同模块可并行工作，同一串口的命令顺序执行。服务启动后每 20 秒更新设备状态，网页每 8 秒读取缓存；短信收件箱通过读取按钮刷新。
+The web service owns the AT ports it opens. Stop it with **Ctrl+C** before using the CLI or another Python process on those same ports. [Troubleshooting →](docs/troubleshooting.md)
 
-Web 服务独占模块 AT 端口；使用 CLI 或另外的 Python 进程操作同一模块前请先停止 Web 服务（Ctrl+C）。
-
-## Python 工具库
+## Use it from Python
 
 ```python
 from cellulary import Modem, discover_ports
 
-for port in discover_ports():
+ports = discover_ports()
+for port in ports:
     print(port.port, port.description)
 
-with Modem("COM23") as modem:
-    print(modem.identify())
-    print(modem.status())
-    messages = modem.list_sms()  # GSM 7-bit / UCS2 解码，默认合并长短信
-    print(messages)
-    print(modem.data_status())
-    print(modem.list_calls())
+if ports:
+    with Modem(ports[0].port) as modem:
+        print(modem.identify())
+        print(modem.status())
+        print(modem.data_status())
+        print(modem.subscriber_numbers())
+        print(modem.gnss_status())
 ```
 
-需要实际发送、拨号或配置时，显式调用：
+Choose the intended device before performing an action. On SMS-capable firmware, `modem.list_sms()` reads messages and `modem.send_sms(recipient, text)` submits a message. Reading can mark a message as read. A submission response confirms acceptance by the module, not delivery to the recipient; multipart SMS can incur multiple charges.
 
-```python
-with Modem("COM23") as modem:
-    # 替换为实际收件人；这些调用会操作 SIM 业务。
-    result = modem.send_sms("+441234567890", "来自 Cellulary 的消息")
-    modem.configure_apn("internet", context_id=1, pdp_type="IPV4V6")
-    modem.activate_data(context_id=1)
-    # modem.deactivate_data(context_id=1)
-    # modem.dial("+441234567890")
-    # modem.answer()
-    # modem.hangup()
-```
+## Use it from the terminal
 
-短信发送返回的是**模块已提交**结果，不是对方收到的证明。长短信可能按多条计费。`SMSDeliveryError` 携带已经提交的 `references` 和 `total_segments`；遇到超时或部分提交不要自动重发。读取短信可能由固件将未读标记改为已读；不会删除短信。可调用 `enable_sms_notifications()` 配置 `+CMTI` 通知，并用 `drain_urcs()` 获取异步事件。
+Replace `COM7` with an AT port reported by `cellulary ports`.
 
-## 命令行
-
-```powershell
+```sh
 cellulary ports
 cellulary scan
-cellulary status COM23
-cellulary sms COM23
-cellulary sms COM23 --to +441234567890 --text "Hello"
-cellulary data COM23 status
-cellulary data COM23 configure --apn internet --cid 1
-cellulary data COM23 activate --cid 1
-cellulary usb-data COM11 status
-cellulary usb-data COM11 connect --cid 1
-cellulary usb-data COM11 disconnect --cid 1
-cellulary call COM23 list
-cellulary call COM23 dial +441234567890
-cellulary call COM23 hangup
-cellulary network
+cellulary status COM7
+cellulary numbers COM7
+cellulary gnss COM7 status
+cellulary sms COM7
+cellulary data COM7 status
+cellulary usb-data COM7 status
+cellulary call COM7 list
+cellulary network --port COM7
 ```
 
-## 能力和边界
+Run `cellulary --help` for available commands. Configuration, sending, calling and connection changes are explicit operations.
 
-| 功能 | 当前实现 |
-| --- | --- |
-| 多模块识别 | AT 端口枚举、厂商/型号/固件/IMEI、SIM、信号、网络注册、热插拔重扫 |
-| 短信 | PDU 收发、GSM 7-bit/UCS2、长短信分段与合并、部分失败报告 |
-| 模块数据 | APN/PDP 类型配置、PDP 激活/停用、附着和上下文查询 |
-| Windows 联网 | MBN 接口与已有配置文件发现、连接和断开，系统网卡状态查询 |
-| EC801E USB 联网 | `QNETDEVCTL` RNDIS/ECM 拨号请求与状态读取，写操作前探测固件支持 |
-| 通话 | `ATD` / `ATA` / `ATH` / `CLCC` 控制；实际语音能力由固件、SIM、VoLTE、音频硬件决定 |
-| Web API | FastAPI `/docs`，本机同源会话令牌保护写操作 |
-| 5G / 其他模块 | 预留 profile 扩展结构，尚未宣称适配或验证 |
+## Supported hardware
 
-**PDP 激活不等于电脑已经联网。** Windows MBN 使用已经存在的系统配置文件；EC801E 另外提供 USB 网卡拨号控制，要求已启用 RNDIS/ECM 功能，主机通过 DHCP 获得地址。USB 命令返回 OK 只表示已请求拨号，后续状态与主机地址/路由决定连接是否可用。程序不自动切换 USB 模式、刷新固件、重启模块或更改默认路由策略。EC200A 当前使用本机已经识别的 MBN 接口，不套用 EC801E 的 USB 拨号命令。
+| Module | Status | Important distinctions |
+| --- | --- | --- |
+| Quectel EC200A-EU / EUV1 | Initial hardware target | LTE Cat 4; voice requires matching firmware, carrier service and audio hardware; EU GNSS is not claimed |
+| Quectel EC801E-CN | Initial hardware target | LTE Cat 1; RNDIS/ECM; SMS depends on firmware, and the downloaded E-series manual explicitly excludes it for this model |
+| Quectel EC25 | Protocol driver | SMS, call/data and GNSS command integration; not yet tested on physical EC25 hardware in this project |
+| Other 4G / 5G modules | Extension path | Add a vendor/model driver and validation evidence before declaring support |
 
-EC200A 规格书列出 VoLTE 与音频接口；本机 EC801E 固件的 `CLCC` 查询返回 ERROR，其语音能力不能视为已支持。网页提供呼叫控制，不传输电脑麦克风/扬声器音频。两个型号均是 4G 模块。
+[Compatibility matrix](docs/compatibility.md) · [Official command references](docs/hardware-support.md) · [Dated hardware validation](docs/hardware-validation.md)
 
-服务默认仅绑定 `127.0.0.1`，附带同源检查、Host 校验和写请求令牌；不应直接暴露到公网。无需配置或保存移远官网账号。官方原始资料位于本机 `docs/vendor/`，不进入版本控制；来源、版本与哈希记录见 [资料清单](docs/vendor-sources.json)，已取得资料与能力依据见 [兼容性说明](docs/compatibility.md)。
+An active PDP context or successful USB dial request does not establish that the computer has an address, working DNS or an Internet route. Windows host-network integration uses interfaces and profiles already installed on the computer.
 
-## 开发与验证
+Call control does not stream browser microphone or speaker audio. The dashboard exposes device capabilities; a missing SIM, an unsupported command and a missing GNSS fix are different conditions.
 
-```powershell
+## Designed to extend
+
+```text
+Python API · CLI · Web console
+              │
+         Modem / Manager
+              │
+        Driver registry
+              │
+   drivers/quectel/
+   ├── ec200a.py
+   ├── ec801e.py
+   └── ec25.py
+              │
+     Serial transport + URCs
+```
+
+Shared transport handles serial transactions and unsolicited notifications. Vendor/model drivers define command behavior and capabilities. Host-network integration handles operating-system interfaces separately. See the [architecture guide](docs/architecture.md) for adding a module.
+
+## Documentation
+
+- [Compatibility](docs/compatibility.md) — hardware selection and capability boundaries.
+- [Hardware and command reference](docs/hardware-support.md) — official manuals, commands and firmware caveats.
+- [Troubleshooting](docs/troubleshooting.md) — ports, SMS, SIM numbers, data and GNSS.
+- [Architecture](docs/architecture.md) — driver organization and extension guidelines.
+- [Hardware validation](docs/hardware-validation.md) — dated observations and outstanding acceptance tests.
+- [中文文档](docs/zh-CN/README.md) — Chinese companions to the English documentation.
+
+The service binds to loopback by default and protects write requests with origin/host checks and a local session token. It is intended for local administration. No Quectel website credentials are needed to run Cellulary.
+
+## Development
+
+```sh
+uv sync --extra dev
 uv run pytest -q
 uv run ruff check src tests
 uv build
 ```
 
-测试使用可注入的串口替身，不发送真实短信、不发起真实呼叫、不改变主机网络。真实设备验收记录见 [硬件验证](docs/hardware-validation.md)。
+Automated tests use simulated serial responses. Hardware acceptance is recorded separately so protocol coverage is not confused with carrier delivery, audio or Internet validation.
 
-代码按 `transport`（串口事务/URC）、`sms`（PDU）、`modem`（设备操作）、`discovery`（端口识别）、`manager`（设备生命周期）、`network`（主机网络）、`web`（API/静态管理台）划分。新增型号时先核对厂商资料、添加 profile 与接口识别规则，再补命令差异和设备测试；不能仅凭 VID/PID 就假设全部能力一致。
+## License
 
-许可证：GPL-3.0-only；厂商文档版权归移远通信所有。
+Cellulary is licensed under [GPL-3.0-only](LICENSE). Vendor documents remain the property of their respective owners. Original Quectel files are kept locally under the ignored `docs/vendor/` directory; the [source manifest](docs/vendor-sources.json) records provenance and checksums.

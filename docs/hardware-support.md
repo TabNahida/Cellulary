@@ -1,71 +1,94 @@
-# 首批 Quectel 模块支持与资料依据
+# Hardware and command reference
 
-核对日期：2026-09-16。适配对象为 PC 上运行的 Python 工具库，通过模块标准 AT 固件和 USB 驱动管理设备；不要求在模块内运行 QuecPython。原厂文件保存在 `docs/vendor/`，不随 Python 包再分发。可审计的 URL、版本和 SHA-256 见 [vendor-sources.json](vendor-sources.json)。
+[Documentation](README.md) · [简体中文](zh-CN/hardware-support.md)
 
-## 型号与网络
+Sources checked: 2026-09-16, with command review on 2026-09-17. This project runs Python on the host computer and controls standard AT firmware; it does not require QuecPython inside the module. Original files are local research material in `docs/vendor/`. The [source manifest](vendor-sources.json) records URLs, versions, publication dates and SHA-256 hashes.
 
-| 项目 | EC200A-EU / EC200A-EUV1 实物 | EC801E-CN |
-|---|---|---|
-| 无线制式 | EC200A-EU 规格为 LTE Cat 4，下行 150 / 上行 50 Mbps | 工业级规格为 LTE Cat 1，下行 10 / 上行 5 Mbps |
-| LTE-FDD 频段 | B1/3/5/7/8/20/28 | B1/3/5/8 |
-| LTE-TDD 频段 | B38/40/41 | B34/38/39/40/41 |
-| Windows 官方规格列明的 USB 网络 | RNDIS；USB 转串口 | RNDIS；USB 转串口 |
-| Linux 官方规格列明的 USB 网络 | RNDIS、ECM | RNDIS、ECM；V1.0 部分 Linux 能力带开发中星号 |
-| 电话硬件 | EC200A 系列规格 V1.6 第 2 页列数字语音、VoLTE、PCM、模拟麦克风与听筒 | EC801E 工业级规格 V1.0 未列语音/VoLTE/音频接口，不能仅凭同品牌或 ATD 存在承诺通话 |
+Manual page numbers below refer to the **printed footer**, not the PDF viewer index. For example, printed page 137 of the E AT manual is PDF page 138.
 
-来源为 EC200A 产品规格书 V1.6 第 1-3 页及 EC801E-CN 产品规格书 V1.0 第 1-2 页。两份 PDF 已下载，相关驱动表已渲染核对。EC801E-CN 文档明确仅适用于工业级；官网另列消费级硬件手册，必须以具体料号和固件确认功能。两类设备都是 4G，未来 5G 适配需另加驱动配置。
+## Product distinctions
 
-本文后续手册页码均为 PDF 页脚印刷页码（封面另计；例如 E 手册印刷第 137 页是 PDF 第 138 页）。
+| Property | EC200A-EU | EC801E-CN |
+| --- | --- | --- |
+| LTE category | Cat 4, up to 150 Mbps down / 50 Mbps up | Cat 1, up to 10 Mbps down / 5 Mbps up |
+| LTE-FDD bands | B1/3/5/7/8/20/28 | B1/3/5/8 |
+| LTE-TDD bands | B38/40/41 | B34/38/39/40/41 |
+| Windows interfaces in product specification | USB serial, RNDIS | USB serial, RNDIS |
+| Linux interfaces in product specification | USB serial, RNDIS, ECM | USB serial, RNDIS, ECM; some V1.0 entries carry an in-development footnote |
+| Voice hardware | Digital voice, VoLTE, PCM and analog microphone/receiver listed | No voice, VoLTE or audio interface listed in the industrial V1.0 specification |
+| GNSS | EU column does not list GNSS; CN optional support is a separate variant | No GNSS support documented in the reviewed specifications |
 
-当前实物识别应优先用 `ATI`、`AT+CGMM`、`AT+CGMR`（或 `AT+QGMR`），完整保留固件版本。EC200A 系列可只返回 `EC200A`，地区及 V1 修订版须结合固件前缀识别。主任务的真机只读检查得到 `EC200AEUV1HAR02A08M16`，因此不能把这台设备仅按较早 EC200A-EU 文档的全部细节固定处理。
+Sources: EC200A product specification V1.6, pages 1-3; EC801E-CN product specification V1.0, pages 1-2. The EC801E specification explicitly covers the industrial module. Separate industrial and consumer hardware manuals are in the collection. These products are 4G modules; they do not demonstrate 5G support.
 
-## USB 上网与主机网络
+Use `ATI`, `AT+CGMM` and `AT+CGMR`/`AT+QGMR` together. An EC200A may identify only as `EC200A`; the regional and V1 revision must be interpreted with its firmware and hardware part number. Keep physical-device observations in [hardware validation](hardware-validation.md).
 
-官方规格的功能表不是所有后续固件的穷尽列表。2026-09-16 主任务现场检查中，EC200A `AT+QCFG="usbnet"` 返回 `2`，Windows `netsh mbn show interfaces` 实际枚举到该模块的移动宽带接口，状态 Connected。由此本机应使用可观察到的 MBN/MBIM 接口管理；不能因为旧规格只列 RNDIS 就禁用这一真实路径。EC801E 实物 `usbnet` 返回 `3`，与 E AT 手册 V1.3 第 51 页的 `3=RNDIS` 对应；同页定义 `1=ECM`。A AT 手册 V1.4 第 54 页也列这两个取值。配置 USB 模式会自动保存且需重启生效，程序不应在发现设备时修改。E 手册第 40 页对 EC801E 的 QCFG 子命令清单偏保守，而当前实机可以查询 usbnet；具体固件的只读返回比从旧清单推断更可靠。
+## USB network control
 
-EC801E 的官方论坛支持回复明确表示不支持 MBIM/QMI（2025-10-10，https://forumschinese.quectel.com/t/topic/10409，post 2）。该结论只用于 EC801E，不外推至 EC200A。官方规格为 EC801E 的 Windows 网络列出 RNDIS，为 Linux 列出 ECM。
+The E AT manual V1.3 page 51 and A AT manual V1.4 page 54 define `AT+QCFG="usbnet"` as a query when no mode argument is supplied: `1` is ECM and `3` is RNDIS. Writing the mode saves configuration and requires a restart. Discovery should only query it.
 
-正式 AT 手册定义了 USB 数据拨号：E V1.3 第 137-138 页、A V1.4 第 175-176 页。完整格式为 `AT+QNETDEVCTL=<type>,<cid>[,<URC_en>]`，最大命令响应时间为 2 秒。具体参数如下。
+The E manual's page 40 EC801E QCFG applicability note is more restrictive than responses observed on later firmware. Old enumerations are not exhaustive guarantees about later firmware. Likewise, an EC200A variant that actually enumerates as a Windows mobile broadband interface should use the observed interface; do not infer its protocol solely from an older table.
 
-| 参数或操作 | 定义 |
-|---|---|
-| `<type>` | `0` 断开，`1` 仅连接一次，`3` 自动连接；`3` 会自动保存配置，扫描中不要启用 |
-| `<cid>` | PDP 上下文编号，手册范围为 1-15；仍应查询当前固件支持的范围 |
-| `<URC_en>` | `0` 关闭或 `1` 开启 `+QNETDEVSTATUS: <status>` 状态通知 |
-| `AT+QNETDEVCTL=?` | 返回当前固件支持的 type、cid、URC_en 列表 |
-| `AT+QNETDEVCTL?` | 返回 `+QNETDEVCTL: <type>,<cid>,<URC_en>,<state>`，state 为 0 未连接或 1 已连接 |
-| `AT+QNETDEVCTL=1,1,1` | 对 PDP 1 连接一次，并开启状态通知；手册有此完整示例 |
-| `AT+QNETDEVCTL=0,1,0` | 断开 PDP 1 的 USB 网卡连接，关闭状态通知；官方论坛 5976 post 4 亦给出此命令 |
-| `+QNETDEVSTATUS: 0/1` | 网卡断开/连接成功的异步通知，不是主机 DHCP 与互联网可达性保证 |
+The [official EC801E forum reply](https://forumschinese.quectel.com/t/topic/10409), post 2, states that EC801E does not support MBIM/QMI. This is not an EC200A restriction. EC801E USB descriptors V1.3 page 9 list shared VID/PID `2C7C:0903`; USB identity alone cannot uniquely identify the model. The descriptor guide notes that Windows ECM needs an appropriate ECM driver.
 
-官方论坛 https://forumschinese.quectel.com/t/topic/5976 的 post 6 同样给出 `AT+CGDCONT=1,"IP","<APN>"` 和 `AT+QNETDEVCTL=1,1,1` 的操作示例；post 5 报告未激活状态下停止可能返回 ERROR。参数使用 ASCII 引号，并校验 CID/APN 输入。模块地址可通过 `AT+CGPADDR=1` 查询。
+The E AT manual pages 137-138 and A AT manual pages 175-176 define:
 
-`QNETDEVSTATUS` 在正式手册中是 URC；同帖固件日志的 `AT+QNETDEVSTATUS=?` 返回 ERROR。状态查询应使用 `QNETDEVCTL?`。手册例子把返回参数范围的命令写作 `QNETDEVCTL?`，但同一节正式语法表明确测试命令是 `QNETDEVCTL=?`，实现以语法表为准。
+```text
+AT+QNETDEVCTL=<type>,<cid>[,<URC_en>]
+```
 
-USB 描述符 V1.3 第 9 页列 EC801E 等系列共用 VID/PID 为 `2C7C:0903`，因此 PID 不是唯一型号。该手册说明 Windows 的 ECM 需安装对应 ECM 驱动，RNDIS 可自动读取描述符。本机采用已枚举的 RNDIS 模式即可。
+| Item | Meaning |
+| --- | --- |
+| `type=0` | Disconnect the USB network connection |
+| `type=1` | Connect once |
+| `type=3` | Connect automatically; this configuration is saved |
+| `cid` | PDP context identifier, documented range 1-15; query the firmware's supported values |
+| `URC_en=0/1` | Disable/enable `+QNETDEVSTATUS` notifications |
+| `AT+QNETDEVCTL=?` | Test supported parameter ranges |
+| `AT+QNETDEVCTL?` | Read `type,cid,URC_en,state`, with state 0 disconnected or 1 connected |
+| `AT+QNETDEVCTL=1,1,1` | Connect context 1 once and enable notifications |
+| `AT+QNETDEVCTL=0,1,0` | Disconnect context 1 and disable notifications |
+| `+QNETDEVSTATUS: 0/1` | Unsolicited disconnected/connected notification |
 
-模块 PDP/USB 拨号成功、Windows 网卡获得地址、默认路由、DNS 和互联网可达性是不同状态。帖子 5976 正是模块有 PDP 地址但主机 DHCP 失败的例子。首次适配不应在扫描中改变 APN、USB 模式、网络路由或重启设备；这些操作应为用户明确发起的管理动作。
+The documented maximum command response time is two seconds. An `OK` accepts the request; later state and host-network checks establish its outcome. The manuals contain a sample that labels a parameter-range response with `QNETDEVCTL?`; the formal syntax table distinguishes `=?` from `?` and should guide the implementation.
 
-PPP 支持随固件变化：EC801E 规格 V1.0 标 `PPP*`（开发中），2024-07 官方论坛 4637 提到部分固件因 flash 大小裁剪 PPP，2025-10 论坛 10409 又表示支持 PPP。保留能力探测和失败反馈，不为所有 EC801E 硬编码保证 PPP。
+The [official support thread 5976](https://forumschinese.quectel.com/t/topic/5976), posts 4 and 6, corroborates the connect/disconnect commands. It also illustrates that a valid PDP address can coexist with failed host DHCP. `QNETDEVSTATUS` is a notification, not an assumed query command; the thread's firmware rejects `AT+QNETDEVSTATUS=?`.
 
-## 短信、通话及验证边界
+APN/context configuration, USB connection, host DHCP, DNS and routing are separate stages. Do not automatically change USB mode, reboot, alter routing or enable persistent auto-connect during device discovery.
 
-A AT 手册 V1.4 的短信章节定义了 `CMGF`、`CPMS`、`CMGL`、`CMGR`、`CMGS`、`CMGD` 和 `CNMI`。Unicode、长短信分段、PDU 编解码、URC 混入响应，以及空卡/漫游/无网络应分别处理。
+PPP varies by firmware. The V1.0 EC801E specification marks it in development; [thread 4637](https://forumschinese.quectel.com/t/topic/4637) describes a firmware without it, while a later support reply mentions support. Probe rather than infer universal availability.
 
-**EC801E-CN 不能默认标为支持短信。** E AT 手册 V1.3（2025-07-22）第 95 页明确写明 EC600Z-CN、EC800Z-CN 和 EC801E-CN 暂不支持短消息相关命令。能力界面应区分“型号/固件不支持”“SIM 未就绪”和“网络未注册”。若后续固件提供短信命令，可通过只读能力探测启用，不能仅因模块已联网就启用短信发送。
+## SMS: model applicability comes before generic syntax
 
-E AT 手册第 28 页说明 EC801E-CN 的 `AT+CMEE` 只支持 `0` 和 `1`，初始化宜使用 `CMEE=1`；该手册第 29 页还指出 EC801E 不支持 `CSCS`，第 129 页指出不支持 `CGDATA`。
+The E AT manual V1.3 (2025-07-22), **page 95**, explicitly states that EC600Z-CN, EC800Z-CN and **EC801E-CN temporarily do not support SMS commands**. Its subsequent generic SMS sections do not override that model restriction.
 
-电话控制与音频链路分开：`ATD<number>;`、`ATA`、`ATH`、`CLCC` 只涉及呼叫控制。即使获得呼叫连接状态，也不表示浏览器麦克风和扬声器已接入模块。EC200A 需要具体载板音频电路或固件支持的 UAC、PCM 链路，以及运营商语音/VoLTE 配置；已下载 A 音频 V1.3、EC200x/EC600N UAC V1.1 与 A IMS XML V1.1 供进一步适配。
+Pages 96-97 define `CMGF=0` for PDU and `CMGF=1` for text on applicable firmware. Pages 101-102 define numeric status **4** for all messages in PDU mode, versus the string **"ALL"** in text mode. Sending `CMGL="ALL"` while in PDU mode is a protocol mismatch. A rejected `CMGF` should produce an unsupported-feature result, not cascade into an apparently empty inbox.
 
-E 音频指导 V1.0（2025-12-29）第 6 页的适用模块不含 EC801E，只列 EC600E/EC800E/EC600Z/EC800Z/EG800Z，并限定 4 MB Flash。因此这份同系列名称的音频手册不能作为 EC801E 电话音频支持依据。EC801E 界面应保持未验证/不可用状态，直到具体固件及音频硬件得到证实。
+The A AT manual V1.4 describes `CMGF`, `CPMS`, `CMGL`, `CMGR`, `CMGS`, `CMGD` and `CNMI`. The implementation must handle GSM 7-bit/UCS2, multipart messages, unsolicited notifications and partial submission. Reading messages can change unread flags. Do not retry a timed-out or partially submitted send automatically.
 
-主任务只读检查识别到六台设备及其中两张 SIM：EC801E 的一台返回 `CEREG=5`（漫游注册），EC200A 返回 `CEREG=1`（本地注册）。这里不记录 IMEI、ICCID、IMSI 或电话号码。发送短信、拨出电话和切换实际连接没有作为只读扫描的一部分执行。
+Later firmware can differ from the E manual. Use conservative driver defaults and relevant runtime tests; retain the command result and reason when the feature is unavailable. SIM absence and unsupported firmware are distinct conditions.
 
-## 官方资料取得状态
+## Subscriber numbers
 
-已成功从移远中国官网保存 15 份 PDF：2 份公开产品规格书及登录后取得的 13 份正式技术文档。技术文档包含 A AT V1.4、E AT V1.3、A USB 描述符 V1.4、EC800Z/EC801E/EG800Z/EG901E/EG915Z USB 描述符 V1.3、EC200A 硬件 V1.3、EC801E 工业级硬件 V1.3、EC801E 消费级硬件 V1.2、两系列 PPP 指导、A/E 音频指导、EC200x/EC600N UAC 指导和 A IMS XML 指导。官网账号凭证和会话 Cookie 仅在内存中用于正常认证，未写入项目文件。
+`AT+CNUM` reads own-number records stored on the SIM: E AT V1.3 page 94 and A AT V1.4 page 110. It can return zero, one or several records followed by `OK`. An empty response means **unknown**, not an empty telephone number that can be reconstructed from IMSI/ICCID, and not a network registration failure.
 
-两份产品规格的驱动表，以及 E AT 的 USB 模式、短信限制和 USB 拨号定义已渲染人工核对。其余文档保留原文件与全文提取文本供后续逐项适配；不把“已下载”当作所有内容均经过验证。
+A AT V1.4 pages 112-114 document `CPBR` and `CPBS`. Phonebook store `"ON"` is the SIM own-number/MSISDN list; some firmware does not support these commands. The E manual's phonebook chapter documents CNUM only. Therefore a future `CPBS="ON"` fallback must be optional, probe support, read bounded indices and restore the previous store. It must never write `CPBW` merely to discover a number. The current CNUM result remains valid when no fallback exists.
 
-所有正式 PDF 的原下载详情 URL、版本、文档日期及 SHA-256 已登记在 [vendor-sources.json](vendor-sources.json)。资料版权属于移远，原件、提取文本及打包 ZIP 均应留在 gitignore 的 `docs/vendor/` 内。驱动下载条目单独保留 unavailable 状态，现有用户已安装驱动，本次没有重新安装或替换驱动。
+## Voice, audio and GNSS
+
+Call control (`ATD`, `ATA`, `ATH`, `CLCC`) is separate from audio transport. EC200A needs suitable voice firmware, SIM service, carrier VoLTE support and a carrier-board audio path. Downloaded A audio V1.3, UAC V1.1 and IMS XML V1.1 guides provide material for further integration; browser audio is not implemented.
+
+The E audio guide V1.0 page 6 does **not** list EC801E. It lists EC600E, EC800E, EC600Z, EC800Z and EG800Z and limits applicability to 4 MB Flash modules. Its name is not evidence of EC801E audio support.
+
+The EC25 driver implements QGPS-family GNSS queries/control and distinguishes an unsupported receiver, a disabled receiver and a receiver awaiting a fix. No physical EC25 has been validated in this project. Its protocol implementation must not turn into a GNSS promise for EC200A-EU or EC801E.
+
+The official catalogue lists an [EC2x/EG2x/EG9x/EM05 GNSS application note V1.4](https://www.quectel.com.cn/download/quectel_ec2xeg2xeg9xem05%e7%b3%bb%e5%88%97_gnss_%e5%ba%94%e7%94%a8%e6%8c%87%e5%af%bc_v1-4) for further EC25 review. This catalogue entry was verified; its PDF was not downloaded or body-reviewed as part of the 15-file collection.
+
+## Initialization differences
+
+E AT V1.3 page 28 limits EC801E `CMEE` to `0` or `1`; use numeric extended errors with `CMEE=1`. Page 29 excludes EC801E from `CSCS`, and page 129 excludes it from `CGDATA`. A failed optional command should not make the whole online module disappear.
+
+## Downloaded source collection
+
+The collection contains two public product specifications and thirteen authenticated official PDFs: A/E AT, A/E USB descriptors, EC200A hardware, EC801E industrial and consumer hardware, A/E PPP, A/E audio, EC200x/EC600N UAC and A IMS XML. Key specification tables and the E manual's USB, SMS restriction and dial definitions were visually checked against rendered pages. Other files remain available for focused review; downloading a file does not validate every command.
+
+The manifest's driver-package entry remains unavailable because the already installed drivers were not replaced. Original PDFs, extracted text and download archives stay under the ignored `docs/vendor/`. No website password or session cookie is required by or stored in the project.

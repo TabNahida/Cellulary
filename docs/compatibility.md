@@ -1,24 +1,39 @@
-# 型号、资料和命令依据
+# Compatibility
 
-## 已下载的官方文件
+[Documentation](README.md) · [简体中文](zh-CN/compatibility.md)
 
-| 文件 | 版本 | 原始文件 | 已核对内容 |
+A driver implements a protocol; a successful test on physical hardware verifies a particular module and firmware. Neither guarantees every carrier, SIM plan or hardware variant. See [hardware validation](hardware-validation.md) for dated observations.
+
+| Capability | EC200A-EU / EUV1 | EC801E-CN | EC25 |
 | --- | --- | --- | --- |
-| EC200A 系列 LTE Standard 模块产品规格书 | V1.6 | `vendor/EC200A-specification.pdf` | EU 型号、VoLTE、模拟/PCM 音频接口、Windows RNDIS/Linux ECM |
-| EC801E-CN 产品规格书 | V1.0 | `vendor/EC801E-specification.pdf` | Windows 8.1/10/11 RNDIS；部分协议带开发中脚注，不能跨固件假设可用 |
+| Identity, SIM and registration | Initial hardware target | Initial hardware target | Protocol driver; hardware unverified |
+| SMS | PDU interface; delivery requires carrier testing | Firmware-dependent; E AT V1.3 explicitly excludes this model, so runtime capability checks are essential | Protocol driver; hardware unverified |
+| Host data | Windows MBN where enumerated; QNETDEVCTL driver on applicable USB-network firmware | RNDIS/ECM USB control via `QNETDEVCTL` | Driver implementation; host setup requires validation |
+| Call control | Requires voice firmware and service | Unsupported by the current driver; no documented voice/audio path | Protocol driver; hardware unverified |
+| Subscriber numbers | SIM-stored numbers, when available | SIM-stored numbers, when available | SIM-stored numbers, when available |
+| GNSS | Not claimed for EU/EUV1; CN optional variants are a separate target | Not documented as supported | QGPS-family protocol support; receiver hardware unverified |
+| Browser audio | Not implemented | Not implemented | Not implemented |
 
-文件来自 [EC200A 官方产品页](https://www.quectel.com.cn/product/ec200a-series) 和 [EC801E 官方产品页](https://www.quectel.com.cn/product/lte-ec801e-cn)。下载源 URL、文件 SHA-256、版本和获取日期见 `vendor-sources.json`。规格书是功能概览，不能替代 AT 命令手册。
+## Platform scope
 
-官网目录已找到 LTE Standard(A) AT 手册 V1.4、LTE Standard(E) AT 手册 V1.3，以及两款的硬件、USB、PPP 和音频资料。需要会员下载的手册尚未落盘的条目在清单中明确标为 `unavailable`，不把它们当作已阅读的指令依据。原始厂商资料不纳入 Git。
+The Python package requires Python 3.11 or later. Serial access uses pyserial. Current physical validation and host-network management target Windows; other systems need their own interface permissions, drivers and network integration. The presence of a serial device alone does not verify cross-platform operation.
 
-## 命令支持依据
+Automatic discovery selects recognized Quectel AT interfaces. A USB VID/PID can be shared by multiple products and a single module can expose several ports, so driver selection also uses manufacturer, model and firmware identification. Unsupported devices should retain an explicit unknown capability state.
 
-- 身份、SIM、注册、信号、短信 PDU 与 PDP 管理使用 3GPP TS 27.007 / 27.005 及 TS 23.040 / 23.038 的标准命令与编码；具体实现以真实模块响应和回归测试校验。
-- EC801E USB 拨号参考移远官方论坛[技术支持回复 5976](https://forumschinese.quectel.com/t/topic/5976)，支持员给出的请求为 `AT+QNETDEVCTL=1,1,1`，停止为 `AT+QNETDEVCTL=0,1,0`。当前库只将该路径用于 EC801E，写操作前查询命令能力。USB 连接状态不等于主机 Internet 可达。
-- 官方论坛[10409](https://forumschinese.quectel.com/t/topic/10409) 不应被解读为 EC801E 已支持 MBIM/QMI。EC200A 本机实际以 Windows 移动宽带接口出现，能力来自本机枚举证据，而非对其他型号的推断。
-- 官方论坛[4637](https://forumschinese.quectel.com/t/topic/4637) 提醒 PPP 支持与固件有关。该贴涉及数据拨号，不能用它证明语音呼叫可用。
-- 本机 EC801E 的 `AT+CLCC` 返回 ERROR；EC200A 同指令正常。首次发布不承诺 EC801E 的电话功能或浏览器语音。
+## Firmware-sensitive behavior
 
-## 后续模块适配
+EC801E is not a smaller EC200A with interchangeable commands. Its official manual limits SMS, character-set and other commands, and deployed firmware may differ from that manual. Probe the relevant capability and preserve the exact reason for an unavailable feature. A missing SIM must not be turned into permanent hardware incompatibility.
 
-型号选择由厂商、`CGMM` 和 profile 决定；USB VID/PID 仅用来找候选 AT 接口。当前只声明 EC200A 和 EC801E 两个 profile。新增 5G 型号时应分别适配 USB 端口布局、注册技术字段、USB 数据控制、语音能力和固件差异，并使用对应官方资料与真实设备验证。
+`CNUM` reads the SIM's own-number records. A valid empty response means the SIM did not provide a number; it does not identify a network fault. Phonebook fallback is optional and must not overwrite SIM records.
+
+A successful AT command confirms the module's response. It does not prove SMS delivery, working call audio, a GNSS fix or host Internet access. The application keeps those outcomes distinct.
+
+## Source status
+
+The local source collection contains **15 official Quectel PDFs**, including A/E AT manuals, USB descriptors, hardware, PPP, audio, UAC and IMS documentation. They were downloaded from the official Chinese website; provenance, versions and hashes are recorded in [vendor-sources.json](vendor-sources.json). Originals are in the ignored `docs/vendor/` directory and are not redistributed with the package.
+
+The [command reference](hardware-support.md) identifies the sections used for implementation. A document appearing in the collection does not imply that every feature it describes applies to every module. In particular, the E-series audio guide does not list EC801E in its applicability table.
+
+## Adding support
+
+Add a vendor/model driver, command and parsing tests, source references and a dated hardware validation record. Use unknown or unsupported states until evidence supports each capability. New 5G modules require explicit handling for their USB layout, network registration fields, data mode and voice support.

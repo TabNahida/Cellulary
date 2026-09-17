@@ -1,4 +1,4 @@
-"""High-level Quectel EC200A / EC801E operations.
+"""Thread-safe public modem facade with vendor/model driver delegation.
 
 PDP operations affect the module only. They do not install Windows network
 drivers, configure a host adapter, change routes or connect the PC to the
@@ -11,10 +11,13 @@ from __future__ import annotations
 import csv
 import re
 import threading
+import time
 from collections.abc import Callable
+from copy import deepcopy
 
+from .drivers import ModemDriver, select_driver
 from .errors import ATCommandError, PDUError, SMSDeliveryError, UnsupportedModemError
-from .models import PROFILES, ATResponse
+from .models import ATResponse
 from .sms import decode_sms, encode_sms, reassemble_sms, validate_number
 from .transport import ATTransport
 
@@ -38,6 +41,9 @@ class Modem:
         self.transport = transport or ATTransport(port, baudrate, timeout, serial_factory=serial_factory)
         self._lock = threading.RLock()
         self._identity: dict | None = None
+        self._driver: ModemDriver | None = None
+        self._numbers: dict | None = None
+        self._numbers_at = 0.0
 
     def open(self) -> Modem:
         with self._lock:
@@ -45,17 +51,22 @@ class Modem:
             try:
                 self.transport.command("AT")
                 self.transport.command("ATE0")
-                self.transport.command("AT+CMEE=2")
+                # EC801E documents only 0/1; numeric errors work across models.
+                self.transport.command("AT+CMEE=1")
             except Exception:
                 self.transport.close()
                 raise
             self._identity = None
+            self._driver = None
+            self._numbers = None
             return self
 
     def close(self) -> None:
         with self._lock:
             self.transport.close()
             self._identity = None
+            self._driver = None
+            self._numbers = None
 
     def __enter__(self) -> Modem:
         return self.open()
@@ -71,22 +82,68 @@ class Modem:
     def identify(self, *, refresh: bool = False) -> dict:
         with self._lock:
             if self._identity is not None and not refresh:
-                return dict(self._identity)
+                return deepcopy(self._identity)
             values = {}
             for key, command in (("manufacturer", "AT+CGMI"), ("model", "AT+CGMM"), ("revision", "AT+CGMR"), ("imei", "AT+CGSN")):
                 values[key] = "\n".join(self._command(command).lines).strip()
-            model = values["model"].upper()
-            profile = next((p for p in PROFILES if re.search(rf"\b{re.escape(p.model_prefix)}(?:\b|[-_])", model)), None)
-            if "QUECTEL" not in values["manufacturer"].upper():
-                profile = None
-            values.update(port=self.port, profile=profile.name if profile else None, supported=profile is not None, capabilities=list(profile.capabilities) if profile else [], voice_support="firmware_dependent" if profile else "unknown")
+            self._driver = select_driver(values, self._command)
+            values.update(port=self.port, **self._driver.metadata())
             self._identity = values
-            return dict(values)
+            self._numbers = None
+            return deepcopy(values)
+
+    @property
+    def driver(self) -> ModemDriver:
+        """The selected vendor/model adapter; first access identifies the module."""
+        self.identify()
+        assert self._driver is not None
+        return self._driver
 
     def _supported(self) -> None:
         identity = self.identify()
         if not identity["supported"]:
             raise UnsupportedModemError(f"No supported profile for {identity['manufacturer']} {identity['model']}")
+
+    def subscriber_numbers(self, *, refresh: bool = True) -> dict:
+        """Read SIM-stored CNUM records; an empty response does not reveal a number.
+
+        No IMSI, ICCID, IMEI, operator code or locally entered value is treated
+        as a subscriber number. Status snapshots cache this query for 60 seconds.
+        """
+        with self._lock:
+            self._supported()
+            if not refresh and self._numbers is not None and time.monotonic() - self._numbers_at < 60:
+                return deepcopy(self._numbers)
+            result: dict = {"numbers": [], "primary": None, "source": "CNUM"}
+            try:
+                response = self._command("AT+CNUM")
+                result["raw"] = list(response.lines)
+                seen = set()
+                for line in response.lines:
+                    if not line.startswith("+CNUM:"):
+                        continue
+                    values = _fields(line)
+                    if len(values) < 3:
+                        continue
+                    alpha, number, kind = values[0], values[1], _integer(values[2])
+                    if not re.fullmatch(r"\+?[0-9]{1,32}", number):
+                        continue
+                    if kind is not None and kind & 0x70 == 0x10 and not number.startswith("+"):
+                        number = "+" + number
+                    key = (number, kind)
+                    if key not in seen:
+                        result["numbers"].append({"number": number, "alpha": alpha, "type": kind})
+                        seen.add(key)
+                if result["numbers"]:
+                    result["primary"] = result["numbers"][0]["number"]
+                else:
+                    result["reason_code"] = "number_not_stored"
+                    result["reason"] = "SIM does not expose a stored subscriber number; CNUM returned no usable number"
+            except ATCommandError as exc:
+                result.update(reason_code="number_query_failed", reason="Subscriber number is unavailable from this SIM or firmware", error=exc.result)
+            self._numbers = deepcopy(result)
+            self._numbers_at = time.monotonic()
+            return result
 
     def status(self) -> dict:
         with self._lock:
@@ -104,6 +161,12 @@ class Modem:
                 else:
                     result["sim"] = {"state": "unknown", "error": exc.result}
                     result["errors"].append({"command": exc.command, "error": exc.result})
+            if result["sim"]["state"] == "ready" and result["identity"]["supported"]:
+                numbers = self.subscriber_numbers(refresh=False)
+                result["sim"].update(phone_number=numbers["primary"], numbers=numbers["numbers"], number_source=numbers["source"], number_reason=numbers.get("reason"), number_reason_code=numbers.get("reason_code"))
+            else:
+                self._numbers = None
+                result["sim"].update(phone_number=None, numbers=[], number_source="CNUM", number_reason="SIM is not ready or the modem driver is unsupported", number_reason_code="sim_not_ready")
             try:
                 for line in self._command("AT+CSQ").lines:
                     if line.startswith("+CSQ:"):
@@ -130,6 +193,12 @@ class Modem:
                         result["operator"] = {"mode": _integer(fields[0]), "format": _integer(fields[1]) if len(fields) > 1 else None, "name": fields[2] if len(fields) > 2 else None, "technology": _integer(fields[3]) if len(fields) > 3 else None}
             except ATCommandError as exc:
                 result["errors"].append({"command": exc.command, "error": exc.result})
+            result["radio"] = self.driver.network_info()
+            plmn = result["radio"].get("operator_plmn")
+            if plmn:
+                result["operator"]["plmn"] = plmn
+                if not result["operator"].get("name"):
+                    result["operator"].update(name=plmn, format=2, source="QNWINFO")
             result["data"] = self.data_status()
             return result
 
@@ -141,6 +210,7 @@ class Modem:
             raise ValueError("Invalid SMS storage status")
         with self._lock:
             self._supported()
+            self.driver.require_sms()
             self._command("AT+CMGF=0")
             response = self._command(f"AT+CMGL={statuses[normalized]}", timeout=30)
             result = []
@@ -166,6 +236,7 @@ class Modem:
         """
         with self._lock:
             self._supported()
+            self.driver.require_sms()
             self._command("AT+CNMI=2,1,0,0,0")
             return {"enabled": True, "notification": "+CMTI", "delivery": "stored"}
 
@@ -173,6 +244,7 @@ class Modem:
         parts = encode_sms(number, text)
         with self._lock:
             self._supported()
+            self.driver.require_sms()
             self._command("AT+CMGF=0")
             references: list[int] = []
             for part in parts:
@@ -190,31 +262,22 @@ class Modem:
         validate_number(number)
         with self._lock:
             self._supported()
-            self._command(f"ATD{number};", timeout=60)
-            return {"status": "dial_requested", "number": number}
+            return self.driver.dial(number)
 
     def answer(self) -> dict:
         with self._lock:
             self._supported()
-            self._command("ATA", timeout=60)
-            return {"status": "answer_requested"}
+            return self.driver.answer()
 
     def hangup(self) -> dict:
         with self._lock:
             self._supported()
-            self._command("ATH")
-            return {"status": "hangup_requested"}
+            return self.driver.hangup()
 
     def list_calls(self) -> list[dict]:
         with self._lock:
             self._supported()
-            result = []
-            for line in self._command("AT+CLCC").lines:
-                if line.startswith("+CLCC:"):
-                    fields = _fields(line)
-                    if len(fields) >= 5:
-                        result.append({"index": _integer(fields[0]), "direction": "incoming" if fields[1] == "1" else "outgoing", "state": _integer(fields[2]), "mode": _integer(fields[3]), "multiparty": fields[4] == "1", "number": fields[5] if len(fields) > 5 else None})
-            return result
+            return self.driver.list_calls()
 
     def data_status(self) -> dict:
         with self._lock:
@@ -276,92 +339,44 @@ class Modem:
             self._command(f"AT+CGACT=0,{context_id}", timeout=40)
             return {"context_id": context_id, "active": False, "scope": "modem", "host_network_managed": False}
 
-    @staticmethod
-    def _usb_capabilities(line: str) -> dict | None:
-        """Parse the three documented QNETDEVCTL test-response range groups."""
-        match = re.fullmatch(r"\+QNETDEVCTL:\s*\(([^()]*)\)\s*,\s*\(([^()]*)\)\s*,\s*\(([^()]*)\)\s*", line)
-        if match is None:
-            return None
-        groups = []
-        for group in match.groups():
-            values = set()
-            for item in group.split(","):
-                bounds = re.fullmatch(r"\s*(\d+)(?:\s*-\s*(\d+))?\s*", item)
-                if bounds is None:
-                    return None
-                start, end = int(bounds[1]), int(bounds[2] or bounds[1])
-                if not 0 <= start <= end <= 255:
-                    return None
-                values.update(range(start, end + 1))
-            groups.append(sorted(values))
-        return dict(zip(("operations", "context_ids", "urc_values"), groups, strict=True))
-
     def usb_data_status(self) -> dict:
-        """Read EC801E USB data control state, without changing USB mode.
-
-        QNETDEVCTL state describes the module-side data connection. Even state
-        1 does not establish host DHCP, DNS, routes or Internet reachability.
-        A supported test response can establish command availability on
-        firmware where the read form is unavailable, with state left unknown.
-        """
+        """Read the selected driver's USB data state, without changing USB mode."""
         with self._lock:
-            identity = self.identify()
-            result: dict = {"supported": False, "operation": None, "cid": None, "urc": None, "state": None, "connected": None, "raw": [], "scope": "usb_modem", "host_network_managed": False}
-            if identity["profile"] != "quectel-ec801e":
-                result["reason"] = "USB data control is currently verified only for the Quectel EC801E profile"
-                return result
-            try:
-                result["raw"] = list(self._command("AT+QNETDEVCTL?").lines)
-                for line in result["raw"]:
-                    if not line.startswith("+QNETDEVCTL:"):
-                        continue
-                    fields = _fields(line)
-                    values = [_integer(value) for value in fields[:4]]
-                    if len(values) == 4 and all(value is not None for value in values):
-                        operation, cid, urc, state = values
-                        result.update(supported=True, operation=operation, cid=cid, urc=urc, state=state, connected={0: False, 1: True}.get(state), evidence="query")
-                        if len(fields) > 4:
-                            result["extra_fields"] = fields[4:]
-                        return result
-            except ATCommandError as exc:
-                result["query_error"] = exc.result
-            try:
-                result["capability_raw"] = list(self._command("AT+QNETDEVCTL=?").lines)
-                for line in result["capability_raw"]:
-                    capabilities = self._usb_capabilities(line)
-                    if capabilities is not None:
-                        result.update(supported=True, capabilities=capabilities, evidence="test")
-                        return result
-            except ATCommandError as exc:
-                result["test_error"] = exc.result
-            result["reason"] = "Firmware did not return a recognized QNETDEVCTL query or capability response"
-            return result
+            return self.driver.usb_data_status()
 
     def _request_usb_data(self, context_id: int, *, connect: bool) -> dict:
         if isinstance(context_id, bool) or not isinstance(context_id, int) or not 1 <= context_id <= 15:
             raise ValueError("USB data context ID must be an integer between 1 and 15")
         with self._lock:
-            capability = self.usb_data_status()
-            if not capability["supported"]:
-                raise UnsupportedModemError(capability["reason"])
-            operation = 1 if connect else 0
-            capabilities = capability.get("capabilities")
-            if capabilities is not None and (operation not in capabilities["operations"] or context_id not in capabilities["context_ids"] or operation not in capabilities["urc_values"]):
-                raise UnsupportedModemError("Firmware does not advertise the requested USB data operation or context")
-            self._command(f"AT+QNETDEVCTL={operation},{context_id},{operation}", timeout=60 if connect else 40)
-            return {"status": "connect_requested" if connect else "disconnect_requested", "requested": True, "context_id": context_id, "connected": None, "scope": "usb_modem", "host_network_managed": False}
+            return self.driver.request_usb_data(context_id, connect=connect)
 
     def connect_usb_data(self, context_id: int = 1) -> dict:
-        """Request EC801E USB data connectivity using the existing APN.
-
-        Official EC801E guidance uses AT+QNETDEVCTL=1,<cid>,1. This neither
-        changes usbnet mode nor restarts the modem or runs host DHCP.
-        """
+        """Request USB data connectivity; APN, USB mode and host DHCP are unchanged."""
         return self._request_usb_data(context_id, connect=True)
 
     def disconnect_usb_data(self, context_id: int = 1) -> dict:
-        """Request EC801E USB data disconnect with AT+QNETDEVCTL=0,<cid>,0."""
+        """Request USB data disconnect through the selected driver."""
         return self._request_usb_data(context_id, connect=False)
+
+    def gnss_status(self) -> dict:
+        """Read GNSS availability, engine state and current fix where supported."""
+        with self._lock:
+            return self.driver.gnss_status()
+
+    def gnss_location(self) -> dict:
+        """Read a GNSS fix without automatically starting the receiver."""
+        with self._lock:
+            return self.driver.gnss_location()
+
+    def start_gnss(self) -> dict:
+        """Request standalone GNSS only after model and firmware capability checks."""
+        with self._lock:
+            return self.driver.start_gnss()
+
+    def stop_gnss(self) -> dict:
+        """Stop a supported GNSS receiver; unsupported models reject before writes."""
+        with self._lock:
+            return self.driver.stop_gnss()
 
     def drain_urcs(self) -> list[str]:
         return self.transport.drain_urcs()

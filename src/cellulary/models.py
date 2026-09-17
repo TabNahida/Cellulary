@@ -32,7 +32,11 @@ class ModemProfile:
     capabilities: tuple[str, ...] = ("sms", "pdp")
 
 
-PROFILES = (
-    ModemProfile("quectel-ec200a", "EC200A"),
-    ModemProfile("quectel-ec801e", "EC801E"),
-)
+def __getattr__(name: str):
+    # Compatibility for callers that previously inspected the static profiles.
+    # The registry now owns model selection and behavior.
+    if name == "PROFILES":
+        from .drivers import registered_drivers
+
+        return tuple(driver.profile for driver in registered_drivers())
+    raise AttributeError(name)

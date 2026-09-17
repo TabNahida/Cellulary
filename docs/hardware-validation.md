@@ -1,30 +1,71 @@
-# 本机硬件验证
+# Hardware validation
 
-验证日期：2026-09-16。Windows，已安装移远驱动。由真实串口读取，不是演示数据。COM 编号可能随 USB 插口或驱动重装改变。
+[Documentation](README.md) · [简体中文](zh-CN/hardware-validation.md)
 
-| AT 端口 | 实际型号 | 固件版本 | SIM 状态 | EPS 注册 |
-| --- | --- | --- | --- | --- |
-| COM9 | EC801E-CN | EC801ECNCGR07A03M02 | 未插卡 | 未注册 |
-| COM10 | EC801E-CN | EC801ECNCGR07A03M02 | 未插卡 | 未注册 |
-| COM11 | EC801E-CN | EC801ECNCGR07A03M02 | READY | 已注册，漫游 |
-| COM12 | EC801E-CN | EC801ECNCGR07A03M02 | 未插卡 | 未注册 |
-| COM13 | EC801E-CN | EC801ECNCGR07A03M02 | 未插卡 | 未注册 |
-| COM23 | EC200A-EU | EC200AEUV1HAR02A08M16 | READY | 已注册，本地网络 |
+These are dated observations from physical devices on Windows with the manufacturer's drivers installed. They describe the tested hardware and firmware, not every revision or carrier. Device labels below are local to this record; phone numbers, SIM identifiers, unique device identifiers and adapter addresses are omitted.
 
-EC801E USB VID/PID 为 `2C7C:0903`，EC200A 为 `2C7C:6005`；AT 接口均为 MI_03。型号由 `CGMM` 配合固件版本识别，不能把一个模块的多个 USB 端口当成多个模块。
+## Test inventory
 
-已验证：
+| Label | Module | Firmware | SIM |
+| --- | --- | --- | --- |
+| A | EC200A-EU/EUV1 | `EC200AEUV1HAR02A08M16` | Ready |
+| E1 | EC801E-CN | `EC801ECNCGR07A03M02` | Ready |
+| E2–E5 | Four EC801E-CN modules | `EC801ECNCGR07A03M02` | Absent |
 
-- 六个 AT 端口均响应；Python `cellulary scan` 成功返回全部设备。
-- 无卡模块的 `+CME ERROR: 10` 映射为未插卡，模块本身保持在线。
-- COM11 与 COM23 均已附着数据服务并存在活动 PDP 上下文。
-- Windows `netsh mbn show interfaces` 报告 EC200A 移动宽带接口「手机网络 18」已连接，提供商 CMLink；已有配置文件可枚举。
-- 当前 EC801E `AT+QCFG="usbnet"` 返回 3，EC200A 返回 2；仅查询，未更改 USB 模式。
-- COM11 的 `AT+QNETDEVCTL?` 返回 `3,1,1,1`，USB 数据连接状态为已连接；程序未发起/停止此已有拨号，主机出口连通性仍需单独验证。
-- 真实 Web API 返回六个模块与两个 READY SIM，和串口结果一致。
-- 管理台在 1265×712 桌面与 390×844 窄屏验证通过，无整页横向溢出或浏览器控制台错误。已验证模块切换、数据读取、通话状态读取、错误反馈和事件筛选。
-- COM23 的 `AT+CLCC` 查询正常，当前无活动通话；COM11 同一查询返回 `ERROR`。因此本机 EC801E 固件的语音功能不能视为已支持。
+EC801E enumerated with USB VID/PID `2C7C:0903`; EC200A used `2C7C:6005`. The AT interface was `MI_03`. Model and firmware queries distinguished products; multiple USB ports belonging to one module were not counted as separate modules. COM port names changed during the investigation and are not stable device identities.
 
-验证没有发送短信、发起/接听呼叫、改 APN、激活/停用连接或切换系统路由。短信端到端送达、真实来电/声音、数据连接切换与指定模块出口连通性尚需配合实际业务测试；不要把当前 Windows 已有连接状态视为这些操作已经验收通过。自动化测试验证协议与请求流程，不能代替运营商网络验收。
+## 2026-09-16 — Initial integration
 
-可重复执行 `tools/probe_hardware.py` 读取原始状态（先停止 Web 服务释放串口）。该脚本不包含发信、拨号、重启、PIN 输入或网络状态写命令。
+- All six AT ports responded and `cellulary scan` found all six devices. No-SIM `+CME ERROR: 10` responses mapped to SIM absent while the modules remained online.
+- A and E1 were attached to data service with active PDP contexts. A was registered on its home network; E1 was registered while roaming.
+- Windows reported A's mobile broadband interface connected and exposed its existing profiles. Read-only `QCFG="usbnet"` queries returned mode `2` for A and `3` for E1; no USB mode was changed.
+- E1's `QNETDEVCTL?` returned `3,1,1,1`, an already configured automatic USB connection in connected state. Cellulary did not start or stop that pre-existing session during this validation.
+- The live web API reported six modules and two ready SIMs, matching serial responses.
+- The dashboard was checked at 1265×712 and 390×844. Device selection, data reads, call-state reads, errors and event filtering worked without whole-page horizontal overflow or browser-console errors.
+- A accepted `CLCC` and reported no active calls. E1 returned `ERROR` for the same query; this did not establish EC801E voice support.
+
+This phase did not send SMS, initiate or answer calls, change APNs, activate/deactivate connections or switch system routing. Existing connected-state reports did not verify the computer's actual Internet path.
+
+## 2026-09-17 — EC801E data path investigation
+
+### Capability and subscriber-number checks
+
+A returned a subscriber-number record through `CNUM`; the number is intentionally not reproduced here. E1 returned `OK` with no number records. Its `CPBS=?`, `CMGF=?`, `CMGF?`, `CPMS?`, `CSCA?`, `CLCC` and `QGPS` queries returned `ERROR` on the tested firmware.
+
+A read-only SIM-file investigation confirmed E1's missing number: `CRSM` file metadata for `EF_MSISDN` described five records of 30 bytes each, and all five records had an empty number-length field (`0xFF`). No SIM records were written. This SIM does not store its own number in that file; neither `CNUM` nor reading `EF_MSISDN` can recover an absent record. It remains an unknown number, independently of working data service.
+
+The SMS command failures agree with the E AT V1.3 manual's EC801E restriction. SMS was not repaired or declared supported. EC801E voice and GNSS were not demonstrated.
+
+### Diagnosis and recovery
+
+E1 was registered on LTE band B3 while roaming and already had a PDP address. The observed failure was therefore not a failure to find a supported radio band.
+
+All five EC801E RNDIS interfaces exposed the same MAC address. Correlating each AT port and network adapter through its USB parent showed that E1's host adapter had an APIPA/link-local address, while an adapter belonging to a module without a SIM held a DHCP lease. Friendly interface names and the duplicate MAC alone could not safely identify the correct adapter.
+
+Recovery released the DHCP lease only on that verified no-SIM adapter and renewed DHCP only on E1's adapter. E1 then obtained a valid lease and gateway. No unrelated or primary network adapter was changed, and no persistent modem settings were altered.
+
+### Internet-path verification
+
+Requests explicitly selected E1's host interface, so successful traffic could not simply be attributed to another desktop connection:
+
+- A UDP DNS query for `example.com` selected E1 with `IP_UNICAST_IF`, bound its source address and used the modem-assigned DNS server. The response matched the transaction ID, returned success (`rcode=0`) and contained two answers.
+- An HTTP request used Windows `IP_UNICAST_IF` with the interface index in network byte order, plus a source-address bind. The remote endpoint returned HTTP **301**.
+- An HTTPS request used `curl.exe --interface` with E1's source address and Windows TLS trust. `www.cloudflare.com` returned HTTP **200**.
+- A separate Python HTTPS request combined `IP_UNICAST_IF` and a source-address bind with certificate verification enabled. It negotiated **TLS 1.3** and received HTTP **200** from `www.cloudflare.com`, confirming the encrypted path on the selected interface.
+
+These checks verified DNS, HTTP and HTTPS traffic through this EC801E at that time. They did not measure throughput, long-term stability or failover.
+
+The duplicate-MAC condition remains. Sustained use with multiple active SIMs needs documented, unique per-module MAC provisioning or another validated interface strategy. No persistent MAC change or related reboot was performed during this recovery.
+
+## What remains unverified
+
+| Area | Outstanding acceptance work |
+| --- | --- |
+| SMS | Actual send/receive and delivery on SMS-capable hardware, including multipart delivery and carrier behavior |
+| Voice | Real incoming/outgoing calls and an audio path on voice-capable hardware |
+| Connection control | Deliberate APN changes, connect/disconnect transitions and recovery across target firmware |
+| Multi-modem data | Concurrent active SIMs, unique adapter identity, sustained traffic and reconnect behavior |
+| EC25 / GNSS | Physical EC25 variant, receiver control, antenna and position fixes; current coverage is protocol testing |
+| Other platforms | Physical validation and host-network integration beyond Windows |
+
+Automated tests exercise protocol parsing and request behavior with simulated responses; they do not replace these acceptance checks. `tools/probe_hardware.py` can repeat read-only hardware inspection after stopping the web service to release its serial ports. It contains no SMS-send, call, reboot, PIN-entry or network-state write commands.

@@ -55,7 +55,7 @@ def create_app(manager=None, *, poll_interval=20, autostart=True, network=None):
                 try:
                     await asyncio.to_thread(manager.scan)
                 except Exception as exc:
-                    manager.event(f"扫描失败: {exc}", level="error")
+                    manager.event(f"Scan failed: {exc}", level="error")
                 try:
                     await asyncio.wait_for(stop.wait(), timeout=poll_interval)
                 except TimeoutError:
@@ -81,11 +81,11 @@ def create_app(manager=None, *, poll_interval=20, autostart=True, network=None):
         origin = request.headers.get("origin")
         origin_url = urlparse(origin) if origin else None
         if origin_url and (origin_url.netloc != request.headers.get("host") or origin_url.scheme != request.url.scheme):
-            return JSONResponse({"detail": "拒绝跨站请求"}, status_code=403)
+            return JSONResponse({"detail": "Cross-site request denied", "code": "cross_site_denied"}, status_code=403)
         if request.method not in {"GET", "HEAD", "OPTIONS"}:
             supplied_token = request.headers.get("x-cellulary-token", "")
             if not supplied_token.isascii() or not hmac.compare_digest(supplied_token, token):
-                return JSONResponse({"detail": "会话已过期，请刷新页面"}, status_code=403)
+                return JSONResponse({"detail": "Session expired. Reload the page.", "code": "session_expired"}, status_code=403)
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -96,7 +96,7 @@ def create_app(manager=None, *, poll_interval=20, autostart=True, network=None):
 
     @app.exception_handler(KeyError)
     async def missing(request, exc):
-        return JSONResponse({"detail": "模块未连接，请重新扫描"}, status_code=404)
+        return JSONResponse({"detail": "Device disconnected. Scan again.", "code": "device_disconnected"}, status_code=404)
 
     @app.exception_handler(ValueError)
     async def invalid(request, exc):
@@ -135,6 +135,34 @@ def create_app(manager=None, *, poll_interval=20, autostart=True, network=None):
     def status(device_id: str):
         return manager.status(device_id)
 
+    @app.get("/api/devices/{device_id}/numbers")
+    def numbers(device_id: str):
+        result = manager.invoke(device_id, "subscriber_numbers", refresh=True)
+        manager.status(device_id)
+        return result
+
+    @app.get("/api/devices/{device_id}/gnss")
+    def gnss(device_id: str):
+        return manager.invoke(device_id, "gnss_status")
+
+    @app.get("/api/devices/{device_id}/gnss/location")
+    def location(device_id: str):
+        return manager.invoke(device_id, "gnss_location")
+
+    @app.post("/api/devices/{device_id}/gnss/start")
+    def gnss_start(device_id: str):
+        return manager.invoke(device_id, "start_gnss")
+
+    @app.post("/api/devices/{device_id}/gnss/stop")
+    def gnss_stop(device_id: str):
+        return manager.invoke(device_id, "stop_gnss")
+
+    @app.get("/api/devices/{device_id}/network")
+    def device_network(device_id: str):
+        if device_id not in {d["id"] for d in manager.snapshot()["devices"]}:
+            raise KeyError(device_id)
+        return network.device_status(device_id)
+
     @app.get("/api/devices/{device_id}/sms")
     def sms_list(device_id: str):
         return {"messages": manager.invoke(device_id, "list_sms")}
@@ -150,17 +178,17 @@ def create_app(manager=None, *, poll_interval=20, autostart=True, network=None):
     @app.post("/api/devices/{device_id}/data/configure")
     def configure(device_id: str, request: ApnRequest):
         result = manager.invoke(device_id, "configure_apn", apn=request.apn, context_id=request.cid)
-        return result or {"message": "APN 已配置"}
+        return result or {"message": "APN configured"}
 
     @app.post("/api/devices/{device_id}/data/activate")
     def activate(device_id: str, request: ContextRequest):
         result = manager.invoke(device_id, "activate_data", context_id=request.cid)
-        return result or {"message": "PDP 已激活；请检查主机网卡与路由"}
+        return result or {"message": "PDP activated. Check the host adapter and route."}
 
     @app.post("/api/devices/{device_id}/data/deactivate")
     def deactivate(device_id: str, request: ContextRequest):
         result = manager.invoke(device_id, "deactivate_data", context_id=request.cid)
-        return result or {"message": "PDP 已停用"}
+        return result or {"message": "PDP deactivated"}
 
     @app.get("/api/devices/{device_id}/calls")
     def calls(device_id: str):
@@ -180,15 +208,15 @@ def create_app(manager=None, *, poll_interval=20, autostart=True, network=None):
 
     @app.post("/api/devices/{device_id}/calls/dial")
     def dial(device_id: str, request: NumberRequest):
-        return manager.invoke(device_id, "dial", number=request.number) or {"message": "已请求拨号"}
+        return manager.invoke(device_id, "dial", number=request.number) or {"message": "Dial requested"}
 
     @app.post("/api/devices/{device_id}/calls/answer")
     def answer(device_id: str):
-        return manager.invoke(device_id, "answer") or {"message": "已请求接听"}
+        return manager.invoke(device_id, "answer") or {"message": "Answer requested"}
 
     @app.post("/api/devices/{device_id}/calls/hangup")
     def hangup(device_id: str):
-        return manager.invoke(device_id, "hangup") or {"message": "已请求挂断"}
+        return manager.invoke(device_id, "hangup") or {"message": "Hangup requested"}
 
     @app.get("/api/host/network")
     def host_status():

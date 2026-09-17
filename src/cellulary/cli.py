@@ -14,39 +14,45 @@ def output(value):
 def main(argv=None):
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(prog="cellulary", description="蜂窝模块工具库与本地管理台")
+    parser = argparse.ArgumentParser(prog="cellulary", description="Cellular modem toolkit and local web console")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("ports", help="列出移远 AT 端口，不打开串口")
-    sub.add_parser("scan", help="识别所有模块并读取状态")
-    serve = sub.add_parser("web", help="运行本地 Web 管理台")
+    sub.add_parser("ports", help="List Quectel AT ports without opening them")
+    sub.add_parser("scan", help="Identify all devices and read status")
+    serve = sub.add_parser("web", help="Run the local web console")
     serve.add_argument("--port", type=int, default=8765)
-    status = sub.add_parser("status", help="读取指定 AT 端口状态")
+    status = sub.add_parser("status", help="Read status from an AT port")
     status.add_argument("port")
-    sms = sub.add_parser("sms", help="列出或发送短信")
+    sms = sub.add_parser("sms", help="Read or send SMS")
     sms.add_argument("port")
     sms.add_argument("--to", dest="number")
     sms.add_argument("--text")
-    call = sub.add_parser("call", help="语音呼叫控制；音频需模块硬件支持")
+    call = sub.add_parser("call", help="Control voice calls; audio requires module hardware support")
     call.add_argument("port")
     call.add_argument("action", choices=["list", "dial", "answer", "hangup"])
     call.add_argument("number", nargs="?")
-    data = sub.add_parser("data", help="模块 PDP 上下文控制")
+    data = sub.add_parser("data", help="Control modem PDP contexts")
     data.add_argument("port")
     data.add_argument("action", choices=["status", "configure", "activate", "deactivate"])
     data.add_argument("--apn")
     data.add_argument("--cid", type=int, default=1)
-    usb = sub.add_parser("usb-data", help="EC801E USB 网卡拨号控制（RNDIS/ECM）")
+    usb = sub.add_parser("usb-data", help="Control USB data sessions (RNDIS/ECM)")
     usb.add_argument("port")
     usb.add_argument("action", choices=["status", "connect", "disconnect"])
     usb.add_argument("--cid", type=int, default=1)
-    sub.add_parser("network", help="读取电脑网卡和移动宽带配置")
+    network = sub.add_parser("network", help="Read host adapters and mobile broadband profiles")
+    network.add_argument("--port", help="Only show host adapters belonging to this AT port")
+    numbers = sub.add_parser("numbers", help="Read subscriber numbers stored on the SIM")
+    numbers.add_argument("port")
+    gnss = sub.add_parser("gnss", help="Read or control supported GNSS receivers")
+    gnss.add_argument("port")
+    gnss.add_argument("action", choices=["status", "start", "stop", "location"])
     args = parser.parse_args(argv)
     if args.command == "sms" and bool(args.number) != bool(args.text):
-        parser.error("发送短信需同时提供 --to 与 --text")
+        parser.error("Sending SMS requires both --to and --text")
     if args.command == "call" and args.action == "dial" and not args.number:
-        parser.error("拨号需要电话号码")
+        parser.error("Dial requires a phone number")
     if args.command == "data" and args.action == "configure" and not args.apn:
-        parser.error("配置需要 --apn")
+        parser.error("Configuration requires --apn")
     try:
         if args.command == "web":
             import uvicorn
@@ -66,22 +72,27 @@ def main(argv=None):
                 manager.close()
         elif args.command == "network":
             from .network import HostNetwork
-            output(HostNetwork().status())
+            output(HostNetwork().device_status(args.port) if args.port else HostNetwork().status())
         else:
             from .modem import Modem
             with Modem(args.port) as modem:
                 if args.command == "status":
                     output(modem.status())
+                elif args.command == "numbers":
+                    output(modem.subscriber_numbers())
+                elif args.command == "gnss":
+                    method = {"status": "gnss_status", "start": "start_gnss", "stop": "stop_gnss", "location": "gnss_location"}[args.action]
+                    output(getattr(modem, method)())
                 elif args.command == "sms":
                     if args.number is None and args.text is None:
                         output(modem.list_sms())
                     elif args.number and args.text:
                         output(modem.send_sms(args.number, args.text))
                     else:
-                        parser.error("发送短信需同时提供 --to 与 --text")
+                        parser.error("Sending SMS requires both --to and --text")
                 elif args.command == "call":
                     if args.action == "dial" and not args.number:
-                        parser.error("拨号需要电话号码")
+                        parser.error("Dial requires a phone number")
                     method = "list_calls" if args.action == "list" else args.action
                     output(getattr(modem, method)(args.number) if args.action == "dial" else getattr(modem, method)())
                 elif args.command == "data":
@@ -89,7 +100,7 @@ def main(argv=None):
                         output(modem.data_status())
                     elif args.action == "configure":
                         if not args.apn:
-                            parser.error("配置需要 --apn")
+                            parser.error("Configuration requires --apn")
                         output(modem.configure_apn(args.apn, context_id=args.cid))
                     else:
                         output(getattr(modem, args.action + "_data")(context_id=args.cid))

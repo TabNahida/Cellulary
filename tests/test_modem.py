@@ -5,7 +5,7 @@ from cellulary import ATCommandError, ATResponse, Modem, SMSDeliveryError, Unsup
 
 class FakeTransport:
     def __init__(self, replies=None):
-        self.replies = {"AT+CGMI": ["Quectel"], "AT+CGMM": ["EC801E"], "AT+CGMR": ["EC801ECNCGR07A03M02"], "AT+CGSN": ["123456789012345"]}
+        self.replies = {"AT+CGMI": ["Quectel"], "AT+CGMM": ["EC801E"], "AT+CGMR": ["EC801ECNCGR07A03M02"], "AT+CGSN": ["123456789012345"], "AT+CMGF=?": ["+CMGF: (0,1)"]}
         self.replies.update(replies or {})
         self.commands = []
         self.payloads = []
@@ -100,7 +100,7 @@ def test_apn_and_dial_validation_happens_before_io():
 
 
 def test_voice_call_listing():
-    transport = FakeTransport({"AT+CLCC": ['+CLCC: 1,1,4,0,0,"+4412345",145']})
+    transport = FakeTransport({"AT+CGMM": ["EC200A"], "AT+CLCC": ['+CLCC: 1,1,4,0,0,"+4412345",145']})
     calls = Modem("FAKE", transport=transport).list_calls()
     assert calls == [{"index": 1, "direction": "incoming", "state": 4, "mode": 0, "multiparty": False, "number": "+4412345"}]
 
@@ -183,13 +183,12 @@ def test_unknown_usb_capability_never_attempts_a_write(replies):
     assert not any(command.startswith("AT+QNETDEVCTL=") and command != "AT+QNETDEVCTL=?" for command in transport.commands)
 
 
-def test_ec200a_usb_control_stays_unverified_and_is_not_probed():
-    transport = FakeTransport({"AT+CGMM": ["EC200A"]})
+def test_ec200a_usb_control_uses_standard_a_documented_protocol_after_query():
+    transport = FakeTransport({"AT+CGMM": ["EC200A"], "AT+QNETDEVCTL?": ["+QNETDEVCTL: 0,0,0,0"]})
     modem = Modem("FAKE", transport=transport)
-    assert modem.usb_data_status()["supported"] is False
-    with pytest.raises(UnsupportedModemError):
-        modem.disconnect_usb_data()
-    assert not any("QNETDEVCTL" in command for command in transport.commands)
+    assert modem.usb_data_status()["supported"] is True
+    assert modem.disconnect_usb_data()["requested"]
+    assert transport.commands[-2:] == ["AT+QNETDEVCTL?", "AT+QNETDEVCTL=0,1,0"]
 
 
 @pytest.mark.parametrize("context_id", [0, 16, -1, True, "1"])
@@ -205,3 +204,40 @@ def test_usb_write_must_match_firmware_advertised_capabilities():
     with pytest.raises(UnsupportedModemError):
         Modem("FAKE", transport=transport).connect_usb_data()
     assert "AT+QNETDEVCTL=1,1,1" not in transport.commands
+
+
+def test_initializer_uses_numeric_errors_supported_by_ec801e():
+    transport = FakeTransport({"AT+CMEE=2": ATCommandError("AT+CMEE=2", "ERROR")})
+    with Modem("FAKE", transport=transport):
+        assert transport.commands[:3] == ["AT", "ATE0", "AT+CMEE=1"]
+    assert "AT+CMEE=2" not in transport.commands
+
+
+def test_qnwinfo_supplies_plmn_for_ec801e_blank_cops_without_guessing_operator_name():
+    transport = FakeTransport({"AT+COPS?": ["+COPS: 0,,"], "AT+QNWINFO": ['+QNWINFO: "FDD LTE",23430,"LTE BAND 3",1617']})
+    result = Modem("FAKE", transport=transport).status()
+    assert result["operator"]["name"] == "23430"
+    assert result["operator"]["source"] == "QNWINFO"
+    assert result["radio"]["technology"] == "FDD LTE"
+    assert result["radio"]["operator_plmn"] == "23430"
+    assert result["radio"]["band"] == "LTE BAND 3"
+    assert result["radio"]["channel"] == 1617
+
+
+def test_qnwinfo_preserves_named_cops_operator_and_leading_zero_plmn():
+    transport = FakeTransport({"AT+COPS?": ['+COPS: 0,0,"Example network",7'], "AT+QNWINFO": ['+QNWINFO: "FDD LTE","00101","LTE BAND 3",1617']})
+    result = Modem("FAKE", transport=transport).status()
+    assert result["operator"]["name"] == "Example network"
+    assert result["operator"]["plmn"] == "00101"
+
+
+@pytest.mark.parametrize("response,reason", [
+    (ATCommandError("AT+QNWINFO", "ERROR"), "radio_query_failed"),
+    (['+QNWINFO: "NONE"'], "radio_no_service"),
+    (['+QNWINFO: "FDD LTE",not-a-plmn,"LTE BAND 3",unknown'], "radio_invalid_response"),
+])
+def test_optional_radio_query_failure_does_not_break_device_status(response, reason):
+    result = Modem("FAKE", transport=FakeTransport({"AT+QNWINFO": response})).status()
+    assert result["identity"]["supported"]
+    assert result["radio"]["available"] is False
+    assert result["radio"]["reason_code"] == reason

@@ -39,6 +39,33 @@ def test_reads_never_start_a_billable_operation():
         assert manager.actions == []
 
 
+def test_gnss_reads_and_mutations_use_separate_routes_and_token():
+    manager = Manager()
+    with TestClient(create_app(manager, autostart=False)) as client:
+        assert client.get("/api/devices/COM11/gnss").status_code == 200
+        assert client.get("/api/devices/COM11/gnss/location").status_code == 200
+        assert client.post("/api/devices/COM11/gnss/start").status_code == 403
+        assert [action[1] for action in manager.actions] == ["gnss_status", "gnss_location"]
+        headers = {"X-Cellulary-Token": client.get("/api/session").json()["token"]}
+        assert client.post("/api/devices/COM11/gnss/start", headers=headers).status_code == 200
+        assert client.post("/api/devices/COM11/gnss/stop", headers=headers).status_code == 200
+        assert [action[1] for action in manager.actions][-2:] == ["start_gnss", "stop_gnss"]
+
+
+def test_per_device_network_status_filters_to_known_device():
+    class Device(Manager):
+        def snapshot(self):
+            return {"devices": [{"id": "COM11"}]}
+
+    class Network:
+        def device_status(self, port):
+            return {"device_port": port, "adapters": []}
+
+    with TestClient(create_app(Device(), autostart=False, network=Network())) as client:
+        assert client.get("/api/devices/COM11/network").json()["device_port"] == "COM11"
+        assert client.get("/api/devices/missing/network").status_code == 404
+
+
 def test_cross_site_requests_and_missing_token_cannot_send_sms():
     manager = Manager()
     with TestClient(create_app(manager, autostart=False)) as client:

@@ -8,6 +8,90 @@ import re
 import subprocess
 
 
+def usb_parent(instance: str) -> str | None:
+    """Match composite USB interfaces by physical parent, never shared MACs."""
+    match = re.fullmatch(r"USB\\(VID_[0-9A-F]{4}&PID_[0-9A-F]{4})&MI_[0-9A-F]{2}\\(.+)&[0-9A-F]{4}", instance.upper())
+    return f"{match[1]}\\{match[2]}" if match else None
+
+
+def windows_usb_ports() -> dict[str, str]:
+    import winreg
+
+    result = {}
+    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\USB") as usb:
+        for index in range(winreg.QueryInfoKey(usb)[0]):
+            try:
+                device = winreg.EnumKey(usb, index)
+                if not device.upper().startswith("VID_2C7C&"):
+                    continue
+                with winreg.OpenKey(usb, device) as instances:
+                    for child in range(winreg.QueryInfoKey(instances)[0]):
+                        try:
+                            instance = winreg.EnumKey(instances, child)
+                            with winreg.OpenKey(instances, instance + r"\Device Parameters") as params:
+                                port = winreg.QueryValueEx(params, "PortName")[0]
+                            with winreg.OpenKey(instances, instance) as entry:
+                                name = winreg.QueryValueEx(entry, "FriendlyName")[0]
+                            parent = usb_parent(f"USB\\{device}\\{instance}")
+                            if parent and re.search(r"\bAT\s+Port\b", name, re.I):
+                                result[parent] = port
+                        except OSError:
+                            continue
+            except OSError:
+                # A composite device can disappear between enumeration and read.
+                continue
+    return result
+
+
+def annotate_adapters(adapters: list[dict], ports: dict[str, str]) -> list[dict]:
+    """Add conservative host configuration diagnostics; no Internet claims."""
+    for adapter in adapters:
+        adapter["device_port"] = ports.get(usb_parent(adapter.get("PnPDeviceID") or ""))
+        mac = adapter.get("MacAddress", "")
+        peers = [a["Name"] for a in adapters if a is not adapter and mac and a.get("MacAddress") == mac]
+        adapter["duplicate_mac"] = bool(peers)
+        adapter["conflicts"] = peers
+        usable = [ip for ip in adapter.get("ipv4", []) if ip.get("state") == "Preferred" and not ip["address"].startswith(("169.254.", "127."))]
+        adapter["host_configured"] = bool(adapter.get("Status") == "Up" and usable and adapter.get("gateways"))
+        adapter["internet_verified"] = False
+    return adapters
+
+
+def windows_adapters() -> list[dict]:
+    # .NET reads IP Helper state without WMI/admin requirements. Intersecting
+    # with live interfaces avoids stale registry adapters after re-enumeration.
+    script = r"""
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new()
+$result = @([Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces() | ForEach-Object {
+    $nic = $_
+    try {
+    $ip = $nic.GetIPProperties(); $v4 = $null
+    if ($nic.Supports([Net.NetworkInformation.NetworkInterfaceComponent]::IPv4)) { $v4 = $ip.GetIPv4Properties() }
+    $path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Network\{4d36e972-e325-11ce-bfc1-08002be10318}\' + $nic.Id + '\Connection'
+    $pnp = (Get-ItemProperty -LiteralPath $path -ErrorAction SilentlyContinue).PnpInstanceID
+    [pscustomobject]@{
+        Name=$nic.Name; InterfaceDescription=$nic.Description; Status=$nic.OperationalStatus.ToString()
+        InterfaceGuid=$nic.Id; ifIndex=$v4.Index; PnPDeviceID=$pnp
+        MacAddress=$nic.GetPhysicalAddress().ToString(); dhcp=$v4.IsDhcpEnabled
+        ipv4=@($ip.UnicastAddresses | Where-Object {$_.Address.AddressFamily -eq 'InterNetwork'} | ForEach-Object { @{address=$_.Address.ToString();state=$_.DuplicateAddressDetectionState.ToString()} })
+        gateways=@($ip.GatewayAddresses | Where-Object {$_.Address.AddressFamily -eq 'InterNetwork'} | ForEach-Object {$_.Address.ToString()})
+        dns=@($ip.DnsAddresses | ForEach-Object {$_.ToString()})
+    }
+    } catch {
+        [pscustomobject]@{Name=$nic.Name; InterfaceDescription=$nic.Description; Status='Unknown'; InterfaceGuid=$nic.Id; query_error=$_.Exception.Message}
+    }
+})
+ConvertTo-Json -InputObject $result -Depth 5 -Compress
+"""
+    completed = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+                               capture_output=True, timeout=20, check=False,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if completed.returncode:
+        raise RuntimeError(completed.stderr.decode("utf-8", errors="replace").strip() or "Could not enumerate Windows adapters")
+    adapters = json.loads(completed.stdout.decode("utf-8-sig"))
+    return annotate_adapters(adapters, windows_usb_ports())
+
+
 def run(arguments: list[str], timeout=20, *, read_only=False) -> str:
     result = subprocess.run(arguments, capture_output=True, timeout=timeout, check=False,
                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
@@ -53,7 +137,7 @@ class HostNetwork:
     def status(self):
         result = dict(platform=platform.system(), interfaces=[], profiles=[], adapters=[], errors=[])
         if platform.system() != "Windows":
-            result["note"] = "此版本主机拨号适配器支持 Windows MBN；Linux 请使用 NetworkManager/ModemManager。"
+            result["note"] = "Host connection control currently supports Windows MBN. Use NetworkManager/ModemManager on Linux."
             return result
         try:
             listing = run(["netsh", "mbn", "show", "interfaces"], read_only=True)
@@ -73,31 +157,31 @@ class HostNetwork:
                 result["profiles"].extend({"interface": interface["name"], "name": n} for n in names)
         except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
             result["errors"].append(str(exc))
-        script = "[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); @(Get-NetAdapter | Select-Object Name,InterfaceDescription,Status,LinkSpeed,ifIndex) | ConvertTo-Json -Compress"
         try:
-            completed = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, timeout=20, creationflags=subprocess.CREATE_NO_WINDOW)
-            if completed.returncode == 0:
-                adapters = json.loads(completed.stdout.decode("utf-8-sig") or "[]")
-                result["adapters"] = adapters if isinstance(adapters, list) else [adapters]
-            else:
-                result["errors"].append("Windows 网卡详细查询不可用；MBN 接口信息仍可单独读取。")
-        except (ValueError, OSError, subprocess.TimeoutExpired) as exc:
+            result["adapters"] = windows_adapters()
+        except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
             result["errors"].append(str(exc))
         if not result["adapters"]:
             try:
                 result["adapters"] = parse_adapters(run(["netsh", "interface", "show", "interface"], read_only=True))
             except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
                 result["errors"].append(str(exc))
-        result["note"] = "MBN 使用 Windows 已有配置文件。RNDIS/ECM 网卡通过模块 USB 数据拨号及 DHCP 上网；PDP 激活不代表电脑已联网。"
+        result["note"] = "MBN uses existing Windows profiles. RNDIS/ECM needs module USB data and host DHCP. A registered modem or configured adapter does not prove Internet access."
         return result
+
+    def device_status(self, port: str):
+        state = self.status()
+        adapters = [a for a in state["adapters"] if a.get("device_port") == port]
+        return {"device_port": port, "adapters": adapters, "errors": state["errors"],
+                "reason_code": None if adapters else "adapter_not_mapped", "note": state["note"]}
 
     def connect(self, interface: str, profile: str):
         state = self.status()
         if not any(p["interface"] == interface and p["name"] == profile for p in state["profiles"]):
-            raise ValueError("请选择该 MBN 接口已有的 Windows 配置文件")
+            raise ValueError("Select an existing Windows profile for this MBN interface")
         return {"message": run(["netsh", "mbn", "connect", f"interface={interface}", "connmode=name", f"name={profile}"], timeout=60)}
 
     def disconnect(self, interface: str):
         if interface not in {i["name"] for i in self.status()["interfaces"]}:
-            raise ValueError("未找到该 MBN 接口")
+            raise ValueError("MBN interface not found")
         return {"message": run(["netsh", "mbn", "disconnect", f"interface={interface}"])}

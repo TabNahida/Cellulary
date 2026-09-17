@@ -162,3 +162,19 @@ def test_partial_open_failure_is_closed_and_reported():
     manager.scan()
     assert instance.closed
     assert manager.snapshot()["devices"][0]["error"] == "initialization failed"
+
+
+def test_status_preserves_number_provenance_and_device_capabilities():
+    manager, _, instances = setup_manager()
+    instances[0].status = lambda: {
+        "identity": {"model": "EC200A", "capabilities": ["sms", "pdp"]},
+        "sim": {"state": "ready", "phone_number": "+441234567890", "numbers": [{"number": "+441234567890"}], "number_source": "CNUM"},
+    }
+    status = manager.status("COM11")
+    assert status["phone_number"] == "+441234567890"
+    assert status["number_source"] == "CNUM"
+    assert status["capabilities"] == ["sms", "pdp"]
+    instances[0].status = lambda: {"sim": {"state": "absent"}}
+    assert manager.status("COM11")["phone_number"] is None
+    assert manager.snapshot()["devices"][0]["numbers"] == []
+    manager.close()

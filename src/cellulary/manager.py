@@ -52,7 +52,7 @@ class DeviceManager:
         try:
             modem.__exit__(None, None, None)
         except Exception as exc:
-            self.event(f"关闭端口失败: {exc}", device_id, "error")
+            self.event(f"Could not close port: {exc}", device_id, "error")
 
     def _invalidate(self, device_id, exc):
         # Caller owns the device operation lock. Never wait on serial I/O while
@@ -90,8 +90,12 @@ class DeviceManager:
         normalized = dict(
             **identity, firmware=identity.get("revision"),
             sim_status=sim.get("state", "UNKNOWN"),
+            phone_number=sim.get("phone_number"), numbers=sim.get("numbers", []),
+            number_source=sim.get("number_source"), number_reason=sim.get("number_reason"),
+            number_reason_code=sim.get("number_reason_code"),
             operator=operator.get("name") if isinstance(operator, dict) else operator,
             registration=registration, signal=status.get("signal", {}),
+            radio=status.get("radio", {}),
             data=status.get("data", {}), connected=True, error=None, updated_at=now(),
             query_errors=status.get("errors", []),
         )
@@ -116,7 +120,7 @@ class DeviceManager:
                     with self._lock:
                         self._modems[device_id] = opening
                     opening = None
-                    self.event("模块已连接", device_id)
+                    self.event("Device connected", device_id)
                 self._read(device_id)
             except Exception as exc:
                 if opening is not None:
@@ -143,7 +147,7 @@ class DeviceManager:
                         self._devices.pop(device_id, None)
                     if modem:
                         self._close_modem(modem, device_id)
-                        self.event("模块已移除", device_id, "warning")
+                        self.event("Device removed", device_id, "warning")
             with ThreadPoolExecutor(max_workers=6) as pool:
                 list(pool.map(self._probe, ports))
         finally:
@@ -174,8 +178,8 @@ class DeviceManager:
                     self._invalidate(device_id, exc)
                 self.event(f"{method}: {exc}", device_id, "error")
                 raise
-            if method not in {"list_sms", "list_calls", "data_status", "usb_data_status"}:
-                self.event(f"{method} 已完成", device_id)
+            if method not in {"list_sms", "list_calls", "data_status", "usb_data_status", "subscriber_numbers", "gnss_status", "gnss_location"}:
+                self.event(f"{method} completed", device_id)
             return result
 
     def close(self):
